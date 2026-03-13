@@ -97,6 +97,23 @@ function generateToken() {
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 }
 
+// Returns a user object safe to send to the client (no password)
+function safeUser(user) {
+  return {
+    id:           user.id,
+    username:     user.username,
+    customerName: user.customerName,
+    customerEmail: user.customerEmail,
+    phone:        user.phone        || '',
+    addressLine1: user.addressLine1 || '',
+    addressLine2: user.addressLine2 || '',
+    postcode:     user.postcode     || '',
+    city:         user.city         || '',
+    county:       user.county       || '',
+    country:      user.country      || ''
+  };
+}
+
 // Auth middleware (used by session check endpoint)
 function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
@@ -120,7 +137,10 @@ function requireAuth(req, res, next) {
 
 // POST register
 app.post('/api/auth/register', (req, res) => {
-  const { username, password, customerName, customerEmail } = req.body;
+  const {
+    username, password, customerName, customerEmail,
+    phone, addressLine1, addressLine2, postcode, city, county, country
+  } = req.body;
 
   if (!username || !password || !customerName || !customerEmail) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -135,7 +155,14 @@ app.post('/api/auth/register', (req, res) => {
     username,
     password,
     customerName,
-    customerEmail
+    customerEmail,
+    phone:        phone        || '',
+    addressLine1: addressLine1 || '',
+    addressLine2: addressLine2 || '',
+    postcode:     postcode     || '',
+    city:         city         || '',
+    county:       county       || '',
+    country:      country      || ''
   };
   users.push(user);
 
@@ -145,7 +172,7 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json({
     success: true,
     token,
-    user: { id: user.id, username: user.username, customerName: user.customerName, customerEmail: user.customerEmail }
+    user: safeUser(user)
   });
 });
 
@@ -168,7 +195,7 @@ app.post('/api/auth/login', (req, res) => {
   res.json({
     success: true,
     token,
-    user: { id: user.id, username: user.username, customerName: user.customerName, customerEmail: user.customerEmail }
+    user: safeUser(user)
   });
 });
 
@@ -184,8 +211,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 // GET session check
 app.get('/api/auth/session', requireAuth, (req, res) => {
-  const { id, username, customerName, customerEmail } = req.user;
-  res.json({ user: { id, username, customerName, customerEmail } });
+  res.json({ user: safeUser(req.user) });
 });
 
 // GET all events

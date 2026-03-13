@@ -140,12 +140,20 @@ async function handleRegister(e) {
     const customerEmail = document.getElementById('regCustomerEmail').value;
     const username = document.getElementById('regUsername').value;
     const password = document.getElementById('regPassword').value;
+    const phone = document.getElementById('regPhone').value;
+    const addressLine1 = document.getElementById('regAddressLine1').value;
+    const addressLine2 = document.getElementById('regAddressLine2').value;
+    const postcode = document.getElementById('regPostcode').value;
+    const city = document.getElementById('regCity').value;
+    const county = document.getElementById('regCounty').value;
+    const country = document.getElementById('regCountry').value;
 
     try {
         const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ customerName, customerEmail, username, password })
+            body: JSON.stringify({ customerName, customerEmail, username, password,
+                phone, addressLine1, addressLine2, postcode, city, county, country })
         });
         const data = await res.json();
         if (res.ok) {

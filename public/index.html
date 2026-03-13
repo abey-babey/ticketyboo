@@ -18,8 +18,8 @@
             <div class="auth-warning">
                 <span class="warning-icon">⚠️</span>
                 <div>
-                    <strong>Training Application Notice</strong>
-                    <p>This is a test and training application. <strong>Do not enter real personal details</strong>, real payment information, or any sensitive data. Use fictional names, emails, and test card numbers only.</p>
+                    <strong class="auth-warning__title">Training Application Notice</strong>
+                    <p>This is a test and training application. Do not enter real personal details, real payment information, or any sensitive data. Use fictional names, emails, and test card numbers only.</p>
                 </div>
             </div>
 
@@ -65,6 +65,41 @@
                         <label for="regPassword">Password:</label>
                         <input type="password" id="regPassword" required placeholder="Choose a password" autocomplete="new-password">
                     </div>
+
+                    <div class="form-section-divider"><span>Address Details</span></div>
+                    <p class="form-section-note">Optional &mdash; used for your account profile.</p>
+
+                    <div class="form-group">
+                        <label for="regPhone">Phone Number:</label>
+                        <input type="tel" id="regPhone" placeholder="e.g. 07700 900000" autocomplete="tel">
+                    </div>
+                    <div class="form-group">
+                        <label for="regAddressLine1">Address Line 1:</label>
+                        <input type="text" id="regAddressLine1" placeholder="e.g. 123 Fictional Street" autocomplete="address-line1">
+                    </div>
+                    <div class="form-group">
+                        <label for="regAddressLine2">Address Line 2:</label>
+                        <input type="text" id="regAddressLine2" placeholder="Apartment, suite, etc. (optional)" autocomplete="address-line2">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPostcode">Postcode:</label>
+                        <input type="text" id="regPostcode" placeholder="e.g. NG1 1AA" autocomplete="postal-code" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="regCity">City / Town:</label>
+                            <input type="text" id="regCity" placeholder="e.g. Bristol" autocomplete="address-level2">
+                        </div>
+                        <div class="form-group">
+                            <label for="regCounty">County:</label>
+                            <input type="text" id="regCounty" placeholder="e.g. South Gloucestershire">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="regCountry">Country:</label>
+                        <input type="text" id="regCountry" placeholder="Auto-filled" autocomplete="country-name">
+                    </div>
+
                     <div id="registerError" class="auth-error" style="display:none"></div>
                     <button type="submit" class="btn btn-primary btn-full" id="registerBtn">Create Account</button>
                     <p class="auth-switch">Already have an account? <a href="#" onclick="switchAuthTab('login'); return false;">Sign in</a></p>
