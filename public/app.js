@@ -1,19 +1,189 @@
 // State
 let currentFilter = 'all';
 let events = [];
+let currentUser = null;
+let authToken = null;
 
 // DOM Elements
 const eventsList = document.getElementById('eventsList');
 const filterButtons = document.querySelectorAll('.filter-btn');
 const eventModal = document.getElementById('eventModal');
 const confirmationModal = document.getElementById('confirmationModal');
+const authOverlay = document.getElementById('authOverlay');
+const mainContent = document.getElementById('mainContent');
+const userInfo = document.getElementById('userInfo');
+const welcomeMessage = document.getElementById('welcomeMessage');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    loadEvents();
+    checkSession();
     setupFilterButtons();
     setupModals();
 });
+
+// ─── Auth ──────────────────────────────────────────────────────────────────
+
+function getStoredToken() {
+    return sessionStorage.getItem('authToken');
+}
+
+function storeToken(token) {
+    sessionStorage.setItem('authToken', token);
+}
+
+function clearToken() {
+    sessionStorage.removeItem('authToken');
+}
+
+async function checkSession() {
+    const token = getStoredToken();
+    if (!token) {
+        showAuthOverlay();
+        return;
+    }
+    try {
+        const res = await fetch('/api/auth/session', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            setLoggedIn(data.user, token);
+        } else {
+            clearToken();
+            showAuthOverlay();
+        }
+    } catch {
+        showAuthOverlay();
+    }
+}
+
+function showAuthOverlay() {
+    authOverlay.style.display = 'flex';
+    mainContent.style.display = 'none';
+    userInfo.style.display = 'none';
+}
+
+function setLoggedIn(user, token) {
+    currentUser = user;
+    authToken = token;
+    storeToken(token);
+    authOverlay.style.display = 'none';
+    mainContent.style.display = 'block';
+    userInfo.style.display = 'flex';
+    welcomeMessage.textContent = 'Welcome, ' + user.customerName;
+    loadEvents();
+}
+
+function switchAuthTab(tab) {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const tabLogin = document.getElementById('tabLogin');
+    const tabRegister = document.getElementById('tabRegister');
+
+    if (tab === 'login') {
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+    } else {
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'block';
+        tabLogin.classList.remove('active');
+        tabRegister.classList.add('active');
+    }
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('registerError').style.display = 'none';
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    const errorEl = document.getElementById('loginError');
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+    errorEl.style.display = 'none';
+
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            setLoggedIn(data.user, data.token);
+        } else {
+            errorEl.textContent = data.error || 'Login failed.';
+            errorEl.style.display = 'block';
+        }
+    } catch {
+        errorEl.textContent = 'Unable to connect. Please try again.';
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    const btn = document.getElementById('registerBtn');
+    const errorEl = document.getElementById('registerError');
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+    errorEl.style.display = 'none';
+
+    const customerName = document.getElementById('regCustomerName').value;
+    const customerEmail = document.getElementById('regCustomerEmail').value;
+    const username = document.getElementById('regUsername').value;
+    const password = document.getElementById('regPassword').value;
+
+    try {
+        const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerName, customerEmail, username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            setLoggedIn(data.user, data.token);
+        } else {
+            errorEl.textContent = data.error || 'Registration failed.';
+            errorEl.style.display = 'block';
+        }
+    } catch {
+        errorEl.textContent = 'Unable to connect. Please try again.';
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+    }
+}
+
+function confirmLogout() {
+    document.getElementById('logoutModal').style.display = 'block';
+}
+
+async function performLogout() {
+    document.getElementById('logoutModal').style.display = 'none';
+    try {
+        await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+    } catch { /* best effort */ }
+    currentUser = null;
+    authToken = null;
+    clearToken();
+    // Reset forms
+    document.getElementById('loginForm').reset();
+    document.getElementById('registerForm').reset();
+    switchAuthTab('login');
+    showAuthOverlay();
+}
 
 // Setup filter buttons
 function setupFilterButtons() {
@@ -147,6 +317,7 @@ async function showEventDetails(eventId) {
                             name="customerName" 
                             required
                             placeholder="John Doe"
+                            value="${currentUser ? currentUser.customerName : ''}"
                         >
                     </div>
                     
@@ -158,6 +329,7 @@ async function showEventDetails(eventId) {
                             name="customerEmail" 
                             required
                             placeholder="john@example.com"
+                            value="${currentUser ? currentUser.customerEmail : ''}"
                         >
                     </div>
                     

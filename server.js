@@ -88,7 +88,105 @@ let events = [
 let purchases = [];
 let purchaseIdCounter = 1;
 
+// In-memory auth store
+let users = [];
+let sessions = [];
+let userIdCounter = 1;
+
+function generateToken() {
+  return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+}
+
+// Auth middleware (used by session check endpoint)
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const token = auth.substring(7);
+  const session = sessions.find(s => s.token === token);
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+  const user = users.find(u => u.id === session.userId);
+  if (!user) {
+    return res.status(401).json({ error: 'User not found' });
+  }
+  req.user = user;
+  next();
+}
+
 // API Routes
+
+// POST register
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, customerName, customerEmail } = req.body;
+
+  if (!username || !password || !customerName || !customerEmail) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  if (users.find(u => u.username === username)) {
+    return res.status(409).json({ error: 'Username already taken' });
+  }
+
+  const user = {
+    id: userIdCounter++,
+    username,
+    password,
+    customerName,
+    customerEmail
+  };
+  users.push(user);
+
+  const token = generateToken();
+  sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
+
+  res.status(201).json({
+    success: true,
+    token,
+    user: { id: user.id, username: user.username, customerName: user.customerName, customerEmail: user.customerEmail }
+  });
+});
+
+// POST login
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  const user = users.find(u => u.username === username && u.password === password);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  const token = generateToken();
+  sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
+
+  res.json({
+    success: true,
+    token,
+    user: { id: user.id, username: user.username, customerName: user.customerName, customerEmail: user.customerEmail }
+  });
+});
+
+// POST logout
+app.post('/api/auth/logout', (req, res) => {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    const token = auth.substring(7);
+    sessions = sessions.filter(s => s.token !== token);
+  }
+  res.json({ success: true });
+});
+
+// GET session check
+app.get('/api/auth/session', requireAuth, (req, res) => {
+  const { id, username, customerName, customerEmail } = req.user;
+  res.json({ user: { id, username, customerName, customerEmail } });
+});
 
 // GET all events
 app.get('/api/events', (req, res) => {

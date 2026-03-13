@@ -7,14 +7,86 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Auth Overlay -->
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-container">
+            <div class="auth-brand">
+                <h1>🎫 Ticketyboo</h1>
+                <p>Your ticket to amazing events!</p>
+            </div>
+
+            <div class="auth-warning">
+                <span class="warning-icon">⚠️</span>
+                <div>
+                    <strong>Training Application Notice</strong>
+                    <p>This is a test and training application. <strong>Do not enter real personal details</strong>, real payment information, or any sensitive data. Use fictional names, emails, and test card numbers only.</p>
+                </div>
+            </div>
+
+            <div class="auth-card">
+                <div class="auth-tabs">
+                    <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+                    <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Create Account</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginUsername">Username:</label>
+                        <input type="text" id="loginUsername" required placeholder="Enter your username" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password:</label>
+                        <input type="password" id="loginPassword" required placeholder="Enter your password" autocomplete="current-password">
+                    </div>
+                    <div id="loginError" class="auth-error" style="display:none"></div>
+                    <button type="submit" class="btn btn-primary btn-full" id="loginBtn">Sign In</button>
+                    <p class="auth-switch">Don't have an account? <a href="#" onclick="switchAuthTab('register'); return false;">Create one</a></p>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" class="auth-form" style="display:none" onsubmit="handleRegister(event)">
+                    <div class="auth-warning auth-warning--inline">
+                        <span>⚠️</span> Use a <strong>fictional name and email</strong> — this is a training app.
+                    </div>
+                    <div class="form-group">
+                        <label for="regCustomerName">Full Name:</label>
+                        <input type="text" id="regCustomerName" required placeholder="e.g. Jane Smith (fictional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="regCustomerEmail">Email Address:</label>
+                        <input type="email" id="regCustomerEmail" required placeholder="e.g. jane@example.com (fictional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="regUsername">Username:</label>
+                        <input type="text" id="regUsername" required placeholder="Choose a username" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password:</label>
+                        <input type="password" id="regPassword" required placeholder="Choose a password" autocomplete="new-password">
+                    </div>
+                    <div id="registerError" class="auth-error" style="display:none"></div>
+                    <button type="submit" class="btn btn-primary btn-full" id="registerBtn">Create Account</button>
+                    <p class="auth-switch">Already have an account? <a href="#" onclick="switchAuthTab('login'); return false;">Sign in</a></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <header>
-        <div class="container">
-            <h1>🎫 Ticketyboo</h1>
-            <p class="tagline">Your ticket to amazing events!</p>
+        <div class="container header-inner">
+            <div>
+                <h1>🎫 Ticketyboo</h1>
+                <p class="tagline">Your ticket to amazing events!</p>
+            </div>
+            <div id="userInfo" class="user-info" style="display:none">
+                <span id="welcomeMessage" class="welcome-message"></span>
+                <button class="btn btn-logout" onclick="confirmLogout()">Sign Out</button>
+            </div>
         </div>
     </header>
 
-    <main class="container">
+    <main class="container" id="mainContent" style="display:none">
         <section class="filters">
             <h2>Browse Events</h2>
             <div class="filter-buttons">
@@ -43,6 +115,21 @@
         <div class="modal-content">
             <span class="close">&times;</span>
             <div id="confirmationDetails"></div>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal">
+        <div class="modal-content modal-content--narrow">
+            <div class="logout-confirmation">
+                <div class="confirmation-icon">👋</div>
+                <h2>Sign Out?</h2>
+                <p>Are you sure you want to sign out?</p>
+                <div class="logout-buttons">
+                    <button class="btn btn-primary" onclick="performLogout()">Yes, Sign Out</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('logoutModal').style.display='none'">Cancel</button>
+                </div>
+            </div>
         </div>
     </div>
 
