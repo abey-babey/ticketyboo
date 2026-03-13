@@ -19,6 +19,17 @@ document.addEventListener('DOMContentLoaded', () => {
     checkSession();
     setupFilterButtons();
     setupModals();
+    initCookieBanner();
+    // Untick 'No marketing please' if a channel is ticked
+    ['mktEmail', 'mktSms', 'mktPhone', 'mktPost'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => {
+            if (el.checked) {
+                const none = document.getElementById('mktNone');
+                if (none) none.checked = false;
+            }
+        });
+    });
 });
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -70,7 +81,7 @@ function setLoggedIn(user, token) {
     authOverlay.style.display = 'none';
     mainContent.style.display = 'block';
     userInfo.style.display = 'flex';
-    welcomeMessage.textContent = 'Welcome, ' + user.customerName;
+    welcomeMessage.textContent = 'Welcome, ' + (user.knownAs || user.firstName) + '!';
     loadEvents();
 }
 
@@ -93,6 +104,113 @@ function switchAuthTab(tab) {
     }
     document.getElementById('loginError').style.display = 'none';
     document.getElementById('registerError').style.display = 'none';
+}
+
+// ─── Cookie Consent ──────────────────────────────────────────────────────────
+
+const COOKIE_KEY = 'cookieConsent';
+
+function initCookieBanner() {
+    const stored = localStorage.getItem(COOKIE_KEY);
+    if (!stored) {
+        document.getElementById('cookieBanner').style.display = 'block';
+    }
+}
+
+function handleCookieChoice(choice) {
+    localStorage.setItem(COOKIE_KEY, choice);
+    const banner = document.getElementById('cookieBanner');
+    banner.classList.add('cookie-banner--hiding');
+    banner.addEventListener('animationend', () => {
+        banner.style.display = 'none';
+        banner.classList.remove('cookie-banner--hiding');
+    }, { once: true });
+}
+
+// Returns the stored consent value ('accepted', 'rejected', or null if not yet set)
+function getCookieConsent() {
+    return localStorage.getItem(COOKIE_KEY);
+}
+
+// ─── Registration — Form Helpers & Validation ────────────────────────────────
+
+// Reveals the free-text field when 'Prefer to self-describe' is chosen
+function toggleGenderDescribe(value) {
+    const describeInput = document.getElementById('regGenderDescribe');
+    if (!describeInput) return;
+    const show = value === 'self-describe';
+    describeInput.style.display = show ? 'block' : 'none';
+    describeInput.required = show;
+    if (!show) describeInput.value = '';
+}
+
+// When 'No marketing please' is ticked, uncheck all channels (and vice versa)
+function toggleMarketingNone(noneChecked) {
+    const channels = ['mktEmail', 'mktSms', 'mktPhone', 'mktPost'];
+    if (noneChecked) {
+        channels.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.checked = false;
+        });
+    }
+}
+
+// Resolves the final gender string from select + optional free-text field
+function resolveGender() {
+    const select = document.getElementById('regGender');
+    if (!select || !select.value) return '';
+    if (select.value === 'self-describe') {
+        const custom = document.getElementById('regGenderDescribe').value.trim();
+        return custom || 'self-describe';
+    }
+    return select.value;
+}
+
+// Updates the confirm-password match indicator
+function updatePasswordMatch() {
+    const pw      = document.getElementById('regPassword').value;
+    const confirm = document.getElementById('regPasswordConfirm').value;
+    const msg     = document.getElementById('passwordMatchMsg');
+    if (!msg) return;
+    if (!confirm) {
+        msg.style.display = 'none';
+        return;
+    }
+    const matched = pw === confirm;
+    msg.style.display = 'block';
+    msg.className = 'password-match-msg ' + (matched ? 'pc-pass' : 'pc-fail');
+    msg.textContent  = matched ? '✓ Passwords match' : '✗ Passwords do not match';
+}
+
+// Returns an object with each rule's result { length, upper, lower, number, special }
+function validatePassword(password) {
+    return {
+        length:  password.length >= 8,
+        upper:   /[A-Z]/.test(password),
+        lower:   /[a-z]/.test(password),
+        number:  /[0-9]/.test(password),
+        special: /[!@#$%^&*]/.test(password)
+    };
+}
+
+// Updates the live checklist UI beneath the password field
+function updatePasswordChecklist(value) {
+    const rules = validatePassword(value);
+    const map = {
+        'pc-length':  rules.length,
+        'pc-upper':   rules.upper,
+        'pc-lower':   rules.lower,
+        'pc-number':  rules.number,
+        'pc-special': rules.special
+    };
+    for (const [id, passed] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const icon = el.querySelector('.pc-icon');
+        el.classList.toggle('pc-pass', passed);
+        el.classList.toggle('pc-fail', !passed);
+        icon.textContent = passed ? '✓' : '✗';
+    }
 }
 
 async function handleLogin(e) {
@@ -136,8 +254,19 @@ async function handleRegister(e) {
     btn.textContent = 'Creating account...';
     errorEl.style.display = 'none';
 
-    const customerName = document.getElementById('regCustomerName').value;
+    const title      = document.getElementById('regTitle').value;
+    const firstName  = document.getElementById('regFirstName').value;
+    const lastName   = document.getElementById('regLastName').value;
+    const middleName = document.getElementById('regMiddleName').value;
+    const knownAs    = document.getElementById('regKnownAs').value;
     const customerEmail = document.getElementById('regCustomerEmail').value;
+    const gender = resolveGender();
+    const marketingPrefs = {
+        email: document.getElementById('mktEmail').checked,
+        sms:   document.getElementById('mktSms').checked,
+        phone: document.getElementById('mktPhone').checked,
+        post:  document.getElementById('mktPost').checked
+    };
     const username = document.getElementById('regUsername').value;
     const password = document.getElementById('regPassword').value;
     const phone = document.getElementById('regPhone').value;
@@ -148,11 +277,32 @@ async function handleRegister(e) {
     const county = document.getElementById('regCounty').value;
     const country = document.getElementById('regCountry').value;
 
+    const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+
+    // Client-side password complexity guard
+    const pwRules = validatePassword(password);
+    if (!Object.values(pwRules).every(Boolean)) {
+        errorEl.textContent = 'Please ensure your password meets all the requirements shown below the password field.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        return;
+    }
+
+    // Confirm password match guard
+    if (password !== passwordConfirm) {
+        errorEl.textContent = 'Passwords do not match. Please re-enter your password.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        return;
+    }
+
     try {
         const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ customerName, customerEmail, username, password,
+            body: JSON.stringify({ title, firstName, middleName, lastName, knownAs, gender, marketingPrefs, customerEmail, username, password,
                 phone, addressLine1, addressLine2, postcode, city, county, country })
         });
         const data = await res.json();

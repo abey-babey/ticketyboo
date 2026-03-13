@@ -49,9 +49,84 @@
                     <div class="auth-warning auth-warning--inline">
                         <span>⚠️</span> Use a <strong>fictional name and email</strong> — this is a training app.
                     </div>
+                    <div class="form-row form-row--title">
+                        <div class="form-group">
+                            <label for="regTitle">Title: <span class="label-optional">(optional)</span></label>
+                            <select id="regTitle" autocomplete="honorific-prefix">
+                                <option value="" selected>None</option>
+                                <optgroup label="Common">
+                                    <option value="Mr">Mr</option>
+                                    <option value="Mrs">Mrs</option>
+                                    <option value="Miss">Miss</option>
+                                    <option value="Ms">Ms</option>
+                                    <option value="Mx">Mx</option>
+                                </optgroup>
+                                <optgroup label="Professional / Academic">
+                                    <option value="Dr">Dr</option>
+                                    <option value="Prof">Prof (Professor)</option>
+                                    <option value="Rev">Rev (Reverend)</option>
+                                    <option value="Canon">Canon</option>
+                                    <option value="Sir">Sir</option>
+                                    <option value="Dame">Dame</option>
+                                    <option value="Lord">Lord</option>
+                                    <option value="Lady">Lady</option>
+                                    <option value="Baron">Baron</option>
+                                    <option value="Baroness">Baroness</option>
+                                </optgroup>
+                                <optgroup label="Military">
+                                    <option value="Cpl">Cpl (Corporal)</option>
+                                    <option value="Sgt">Sgt (Sergeant)</option>
+                                    <option value="WO">WO (Warrant Officer)</option>
+                                    <option value="Lt">Lt (Lieutenant)</option>
+                                    <option value="Capt">Capt (Captain)</option>
+                                    <option value="Maj">Maj (Major)</option>
+                                    <option value="Lt Col">Lt Col (Lieutenant Colonel)</option>
+                                    <option value="Col">Col (Colonel)</option>
+                                    <option value="Brig">Brig (Brigadier)</option>
+                                    <option value="Maj Gen">Maj Gen (Major General)</option>
+                                    <option value="Gen">Gen (General)</option>
+                                    <option value="Adm">Adm (Admiral)</option>
+                                    <option value="Flt Lt">Flt Lt (Flight Lieutenant)</option>
+                                    <option value="Sqn Ldr">Sqn Ldr (Squadron Leader)</option>
+                                    <option value="Wg Cdr">Wg Cdr (Wing Commander)</option>
+                                    <option value="Gp Capt">Gp Capt (Group Captain)</option>
+                                </optgroup>
+                                <optgroup label="Other">
+                                    <option value="prefer-not">Prefer not to say</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="regFirstName">First Name:</label>
+                            <input type="text" id="regFirstName" required placeholder="e.g. Jane (fictional)" autocomplete="given-name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="regMiddleName">Middle Name: <span class="label-optional">(optional)</span></label>
+                            <input type="text" id="regMiddleName" placeholder="e.g. Elizabeth" autocomplete="additional-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="regLastName">Last Name:</label>
+                            <input type="text" id="regLastName" required placeholder="e.g. Smith (fictional)" autocomplete="family-name">
+                        </div>
+                    </div>
                     <div class="form-group">
-                        <label for="regCustomerName">Full Name:</label>
-                        <input type="text" id="regCustomerName" required placeholder="e.g. Jane Smith (fictional)">
+                        <label for="regKnownAs">Known As: <span class="label-optional">(optional)</span></label>
+                        <input type="text" id="regKnownAs" placeholder="e.g. Dan (if different from first name)" autocomplete="nickname">
+                        <p class="form-section-note form-section-note--small">If provided, this is what we’ll use to greet you.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="regGender">Gender:</label>
+                        <select id="regGender" autocomplete="sex" onchange="toggleGenderDescribe(this.value)">
+                            <option value="" disabled selected>Select an option (optional)</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="non-binary">Non-binary</option>
+                            <option value="self-describe">Prefer to self-describe</option>
+                            <option value="prefer-not">Prefer not to share</option>
+                        </select>
+                        <input type="text" id="regGenderDescribe" placeholder="Enter your gender identity" autocomplete="off" style="display:none; margin-top:0.4rem">
                     </div>
                     <div class="form-group">
                         <label for="regCustomerEmail">Email Address:</label>
@@ -63,7 +138,19 @@
                     </div>
                     <div class="form-group">
                         <label for="regPassword">Password:</label>
-                        <input type="password" id="regPassword" required placeholder="Choose a password" autocomplete="new-password">
+                        <input type="password" id="regPassword" required placeholder="Choose a password" autocomplete="new-password" oninput="updatePasswordChecklist(this.value); updatePasswordMatch()">
+                        <ul class="password-checklist" id="passwordChecklist" aria-live="polite">
+                            <li id="pc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
+                            <li id="pc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
+                            <li id="pc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
+                            <li id="pc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
+                            <li id="pc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                        </ul>
+                    </div>
+                    <div class="form-group">
+                        <label for="regPasswordConfirm">Confirm Password:</label>
+                        <input type="password" id="regPasswordConfirm" required placeholder="Re-enter your password" autocomplete="new-password" oninput="updatePasswordMatch()">
+                        <p class="password-match-msg" id="passwordMatchMsg" aria-live="polite" style="display:none"></p>
                     </div>
 
                     <div class="form-section-divider"><span>Address Details</span></div>
@@ -99,6 +186,32 @@
                         <label for="regCountry">Country:</label>
                         <input type="text" id="regCountry" placeholder="Auto-filled" autocomplete="country-name">
                     </div>
+
+                    <div class="form-section-divider"><span>Marketing Preferences</span></div>
+                    <p class="form-section-note">Optional &mdash; let us know how you'd like to hear from us about upcoming events and offers. You can update these at any time.</p>
+                    <div class="marketing-options">
+                        <label class="marketing-option">
+                            <input type="checkbox" id="mktEmail" name="mktEmail">
+                            <span class="marketing-option__label">📧 Email</span>
+                        </label>
+                        <label class="marketing-option">
+                            <input type="checkbox" id="mktSms" name="mktSms">
+                            <span class="marketing-option__label">💬 SMS / Text message</span>
+                        </label>
+                        <label class="marketing-option">
+                            <input type="checkbox" id="mktPhone" name="mktPhone">
+                            <span class="marketing-option__label">📞 Phone call</span>
+                        </label>
+                        <label class="marketing-option">
+                            <input type="checkbox" id="mktPost" name="mktPost">
+                            <span class="marketing-option__label">📮 Post</span>
+                        </label>
+                        <label class="marketing-option marketing-option--none">
+                            <input type="checkbox" id="mktNone" name="mktNone" onchange="toggleMarketingNone(this.checked)">
+                            <span class="marketing-option__label">🚫 No marketing please</span>
+                        </label>
+                    </div>
+                    <p class="form-section-note form-section-note--small">We will never share your details with third parties. Leaving all boxes unticked means we won't contact you for marketing purposes.</p>
 
                     <div id="registerError" class="auth-error" style="display:none"></div>
                     <button type="submit" class="btn btn-primary btn-full" id="registerBtn">Create Account</button>
@@ -173,6 +286,20 @@
             <p>&copy; 2026 Ticketyboo. A test automation learning application.</p>
         </div>
     </footer>
+
+    <!-- Cookie Consent Banner -->
+    <div id="cookieBanner" class="cookie-banner" role="region" aria-label="Cookie consent" style="display:none" data-testid="cookie-banner">
+        <div class="cookie-banner__inner">
+            <div class="cookie-banner__text">
+                <p><strong>🍪 This site uses cookies</strong></p>
+                <p>We use essential cookies to keep the site working, and optional analytics cookies to help us understand how it is used. You can accept all cookies or reject non-essential ones — your choice is saved for this browser.</p>
+            </div>
+            <div class="cookie-banner__actions">
+                <button class="btn btn-primary cookie-banner__btn" id="cookieAcceptBtn" onclick="handleCookieChoice('accepted')" data-testid="cookie-accept-btn">Accept All</button>
+                <button class="btn btn-secondary cookie-banner__btn" id="cookieRejectBtn" onclick="handleCookieChoice('rejected')" data-testid="cookie-reject-btn">Reject Non-Essential</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

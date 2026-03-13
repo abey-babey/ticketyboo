@@ -100,9 +100,16 @@ function generateToken() {
 // Returns a user object safe to send to the client (no password)
 function safeUser(user) {
   return {
-    id:           user.id,
-    username:     user.username,
-    customerName: user.customerName,
+    id:            user.id,
+    username:      user.username,
+    firstName:     user.firstName,
+    middleName:    user.middleName   || '',
+    lastName:      user.lastName,
+    knownAs:       user.knownAs      || '',
+    title:         user.title        || '',
+    customerName:  (user.title && user.title !== 'prefer-not' ? user.title + ' ' : '') + user.firstName + (user.middleName ? ' ' + user.middleName : '') + ' ' + user.lastName,
+    gender:        user.gender        || '',
+    marketingPrefs: user.marketingPrefs || { email: false, sms: false, phone: false, post: false },
     customerEmail: user.customerEmail,
     phone:        user.phone        || '',
     addressLine1: user.addressLine1 || '',
@@ -112,6 +119,17 @@ function safeUser(user) {
     county:       user.county       || '',
     country:      user.country      || ''
   };
+}
+
+// ─── Password complexity ────────────────────────────────────────────────────
+// Returns a descriptive error string, or null if the password is valid.
+function validatePasswordComplexity(password) {
+  if (!password || password.length < 8)   return 'Password must be at least 8 characters.';
+  if (!/[A-Z]/.test(password))            return 'Password must contain at least one uppercase letter (A–Z).';
+  if (!/[a-z]/.test(password))            return 'Password must contain at least one lowercase letter (a–z).';
+  if (!/[0-9]/.test(password))            return 'Password must contain at least one number (0–9).';
+  if (!/[!@#$%^&*]/.test(password))       return 'Password must contain at least one special character (! @ # $ % ^ & *).';
+  return null;
 }
 
 // Auth middleware (used by session check endpoint)
@@ -138,11 +156,11 @@ function requireAuth(req, res, next) {
 // POST register
 app.post('/api/auth/register', (req, res) => {
   const {
-    username, password, customerName, customerEmail,
+    username, password, title, firstName, middleName, lastName, knownAs, gender, marketingPrefs, customerEmail,
     phone, addressLine1, addressLine2, postcode, city, county, country
   } = req.body;
 
-  if (!username || !password || !customerName || !customerEmail) {
+  if (!username || !password || !firstName || !lastName || !customerEmail) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
@@ -150,11 +168,27 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(409).json({ error: 'Username already taken' });
   }
 
+  const passwordError = validatePasswordComplexity(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
+  }
+
   const user = {
     id: userIdCounter++,
     username,
     password,
-    customerName,
+    title:        title        || '',
+    firstName,
+    middleName:   middleName   || '',
+    lastName,
+    knownAs:      knownAs      || '',
+    gender:       gender       || '',
+    marketingPrefs: {
+      email: !!(marketingPrefs && marketingPrefs.email),
+      sms:   !!(marketingPrefs && marketingPrefs.sms),
+      phone: !!(marketingPrefs && marketingPrefs.phone),
+      post:  !!(marketingPrefs && marketingPrefs.post)
+    },
     customerEmail,
     phone:        phone        || '',
     addressLine1: addressLine1 || '',

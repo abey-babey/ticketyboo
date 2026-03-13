@@ -273,6 +273,10 @@ header h1 {
     gap: 1rem;
 }
 
+.form-row--title {
+    grid-template-columns: 1fr 2fr;
+}
+
 .form-group {
     margin-bottom: 1rem;
 }
@@ -284,12 +288,82 @@ header h1 {
     font-weight: 500;
 }
 
+.label-optional {
+    font-weight: 400;
+    font-size: 0.82rem;
+    color: #888;
+}
+
 .form-group input {
     width: 100%;
     padding: 0.7rem;
     border: 1px solid #ddd;
     border-radius: 5px;
     font-size: 1rem;
+}
+
+.form-group select {
+    width: 100%;
+    padding: 0.7rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    appearance: auto;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Marketing preferences checkboxes */
+.marketing-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.marketing-option {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 5px;
+    transition: background 0.15s;
+}
+
+.marketing-option:hover {
+    background: #f0f2ff;
+}
+
+.marketing-option input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
+.marketing-option--none {
+    margin-top: 0.25rem;
+    border-top: 1px solid #e8e8e8;
+    padding-top: 0.6rem;
+}
+
+.marketing-option--none .marketing-option__label {
+    color: #666;
+}
+
+.form-section-note--small {
+    font-size: 0.78rem;
+    color: #888;
+    margin-top: 0.4rem;
 }
 
 .form-group input:focus {
@@ -663,5 +737,124 @@ footer {
 
     .auth-brand h1 {
         font-size: 2rem;
+    }
+}
+
+/* Password complexity checklist */
+.password-checklist {
+    list-style: none;
+    margin: 0.5rem 0 0 0;
+    padding: 0.6rem 0.75rem;
+    background: #f8f9ff;
+    border: 1px solid #e0e4f0;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.pc-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: color 0.2s;
+}
+
+.pc-icon {
+    font-weight: bold;
+    min-width: 1em;
+    text-align: center;
+}
+
+.pc-fail {
+    color: #c0392b;
+}
+
+.pc-pass {
+    color: #27ae60;
+}
+
+/* Confirm-password match message */
+.password-match-msg {
+    margin-top: 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+/* Cookie consent banner */
+.cookie-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    z-index: 9999;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    animation: slideUpIn 0.35s ease;
+}
+
+@keyframes slideUpIn {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+.cookie-banner--hiding {
+    animation: slideDownOut 0.3s ease forwards;
+}
+
+@keyframes slideDownOut {
+    from { transform: translateY(0);    opacity: 1; }
+    to   { transform: translateY(100%); opacity: 0; }
+}
+
+.cookie-banner__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.cookie-banner__text {
+    flex: 1;
+    min-width: 260px;
+}
+
+.cookie-banner__text p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.cookie-banner__text p + p {
+    margin-top: 0.3rem;
+    opacity: 0.85;
+}
+
+.cookie-banner__actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.cookie-banner__btn {
+    padding: 0.55rem 1.25rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .cookie-banner__inner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    .cookie-banner__actions {
+        flex-direction: column;
     }
 }
