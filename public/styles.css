@@ -775,6 +775,32 @@ footer {
     color: #27ae60;
 }
 
+/* Muted state — item belongs to the inactive credential mode */
+.pc-muted {
+    color: #bbb;
+    font-style: italic;
+}
+
+/* Divider between traditional and passphrase sections */
+.pc-divider {
+    font-size: 0.78rem;
+    color: #999;
+    text-align: center;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0;
+    border-top: 1px dashed #dde;
+    margin-top: 0.15rem;
+}
+
+/* Mode label — "Traditional password:" / "Passphrase (active):" */
+.pc-mode-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #667eea;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
 /* Confirm-password match message */
 .password-match-msg {
     margin-top: 0.4rem;
@@ -857,4 +883,406 @@ footer {
     .cookie-banner__actions {
         flex-direction: column;
     }
+}
+
+/* ─── My Account header button ─────────────────────────────────────────────── */
+.btn-account {
+    padding: 0.5rem 1.2rem;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-account:hover {
+    background: rgba(255, 255, 255, 0.35);
+    border-color: white;
+}
+
+/* ─── My Account modal ──────────────────────────────────────────────────────── */
+.modal-content--account {
+    max-width: 560px;
+    max-height: 88vh;
+    overflow-y: auto;
+}
+
+.account-modal-title {
+    margin: 0.25rem 0 1.25rem;
+    color: #333;
+    font-size: 1.4rem;
+}
+
+.account-tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 1.5rem;
+}
+
+.account-tab {
+    flex: 1;
+    padding: 0.65rem 0.5rem;
+    background: none;
+    border: none;
+    font-size: 0.95rem;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.account-tab:hover {
+    color: #667eea;
+}
+
+.account-tab.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+}
+
+.account-panel {
+    animation: fadeIn 0.2s ease;
+}
+
+/* ─── Account feedback messages ─────────────────────────────────────────────── */
+.account-feedback {
+    padding: 0.6rem 0.8rem;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+}
+
+.account-feedback--success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.account-feedback--error {
+    background: #ffe0e0;
+    color: #c0392b;
+    border: 1px solid #f5c6cb;
+}
+
+/* ─── Saved cards list ───────────────────────────────────────────────────────── */
+.saved-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+}
+
+.saved-card-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+
+.saved-card-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.saved-card-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.saved-card-name {
+    display: block;
+    font-size: 0.95rem;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.saved-card-meta {
+    display: block;
+    font-size: 0.82rem;
+    color: #777;
+    margin-top: 0.1rem;
+}
+
+.saved-cards-empty {
+    padding: 0.5rem 0;
+    color: #999;
+    font-style: italic;
+}
+
+/* ─── Utility button variants ────────────────────────────────────────────────── */
+.btn-danger {
+    background: #e74c3c;
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #c0392b;
+    transform: translateY(-1px);
+}
+
+.btn-sm {
+    padding: 0.35rem 0.85rem;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+    .account-tab {
+        font-size: 0.82rem;
+        padding: 0.55rem 0.25rem;
+    }
+    .saved-card-item {
+        flex-wrap: wrap;
+    }
+}
+
+/* ─── Header Sign In button (guest state) ────────────────────────────────── */
+.btn-signin {
+    padding: 0.5rem 1.2rem;
+    background: white;
+    color: #667eea;
+    border: 2px solid white;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-signin:hover {
+    background: rgba(255, 255, 255, 0.85);
+}
+
+/* ─── Auth overlay close button ─────────────────────────────────────────────── */
+.auth-overlay-close {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    transition: color 0.2s;
+    z-index: 1;
+}
+
+.auth-overlay-close:hover {
+    color: white;
+}
+
+/* auth-container needs relative positioning so close btn can anchor to it */
+.auth-container {
+    position: relative;
+}
+
+/* ─── "Browse without signing in" link ──────────────────────────────────────── */
+.auth-browse-link {
+    text-align: center;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.85);
+    padding-bottom: 1rem;
+}
+
+.auth-browse-link a {
+    color: white;
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.auth-browse-link a:hover {
+    opacity: 0.8;
+}
+
+/* ─── Guest purchase notice ─────────────────────────────────────────────────── */
+.guest-purchase-notice {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    background: #f0f4ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 7px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    color: #374151;
+}
+
+.guest-purchase-notice__icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+}
+
+.guest-purchase-notice p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.guest-purchase-notice a {
+    color: #667eea;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.guest-purchase-notice a:hover {
+    text-decoration: underline;
+}
+
+/* ─── Auth panel extensions (password reset & 2FA) ─────────────────────────── */
+
+.auth-form-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.auth-form-footer .auth-switch {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #999;
+}
+
+.auth-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0 0 1rem 0;
+    font-family: inherit;
+}
+
+.auth-back-btn:hover { text-decoration: underline; }
+
+.auth-panel-heading {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem 0;
+    color: #333;
+}
+
+.auth-panel-intro {
+    font-size: 0.88rem;
+    color: #666;
+    margin: 0 0 1.2rem 0;
+    line-height: 1.5;
+}
+
+.auth-email-notice {
+    display: none;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 6px;
+    padding: 0.7rem 1rem;
+    font-size: 0.85rem;
+    color: #1565c0;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.auth-email-notice a {
+    color: #1565c0;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* ─── 2FA toggle in My Account / Security ────────────────────────────────── */
+
+.twofa-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 1rem;
+}
+
+.twofa-toggle-row .twofa-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.twofa-toggle-row .twofa-label strong {
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.twofa-toggle-row .twofa-label span {
+    font-size: 0.82rem;
+    color: #888;
+}
+
+/* Toggle switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #ccc;
+    border-radius: 24px;
+    transition: background-color 0.2s;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #667eea;
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+.twofa-status-msg {
+    font-size: 0.85rem;
+    margin-top: 0;
+    margin-bottom: 1.2rem;
 }

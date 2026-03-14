@@ -8,8 +8,9 @@
 </head>
 <body>
     <!-- Auth Overlay -->
-    <div id="authOverlay" class="auth-overlay">
+    <div id="authOverlay" class="auth-overlay" style="display:none">
         <div class="auth-container">
+            <button class="auth-overlay-close" onclick="closeAuthOverlay()" aria-label="Back to events">&times;</button>
             <div class="auth-brand">
                 <h1>🎫 Ticketyboo</h1>
                 <p>Your ticket to amazing events!</p>
@@ -41,7 +42,10 @@
                     </div>
                     <div id="loginError" class="auth-error" style="display:none"></div>
                     <button type="submit" class="btn btn-primary btn-full" id="loginBtn">Sign In</button>
-                    <p class="auth-switch">Don't have an account? <a href="#" onclick="switchAuthTab('register'); return false;">Create one</a></p>
+                    <div class="auth-form-footer">
+                        <p class="auth-switch">Don't have an account? <a href="#" onclick="switchAuthPanel('register'); return false;">Create one</a></p>
+                        <p class="auth-switch"><a href="#" onclick="switchAuthPanel('reset-request'); return false;">Forgot password?</a></p>
+                    </div>
                 </form>
 
                 <!-- Register Form -->
@@ -140,11 +144,16 @@
                         <label for="regPassword">Password:</label>
                         <input type="password" id="regPassword" required placeholder="Choose a password" autocomplete="new-password" oninput="updatePasswordChecklist(this.value); updatePasswordMatch()">
                         <ul class="password-checklist" id="passwordChecklist" aria-live="polite">
+                            <li class="pc-mode-label" id="pc-mode-label">Traditional password:</li>
                             <li id="pc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
                             <li id="pc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
                             <li id="pc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
                             <li id="pc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
                             <li id="pc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                            <li class="pc-divider">— or use a passphrase —</li>
+                            <li id="pc-pp-length" class="pc-rule pc-muted"><span class="pc-icon">○</span> 20+ characters total</li>
+                            <li id="pc-pp-upper"  class="pc-rule pc-muted"><span class="pc-icon">○</span> 2+ uppercase letters (one per word)</li>
+                            <li id="pc-pp-number" class="pc-rule pc-muted"><span class="pc-icon">○</span> 1+ number</li>
                         </ul>
                     </div>
                     <div class="form-group">
@@ -215,9 +224,86 @@
 
                     <div id="registerError" class="auth-error" style="display:none"></div>
                     <button type="submit" class="btn btn-primary btn-full" id="registerBtn">Create Account</button>
-                    <p class="auth-switch">Already have an account? <a href="#" onclick="switchAuthTab('login'); return false;">Sign in</a></p>
+                    <p class="auth-switch">Already have an account? <a href="#" onclick="switchAuthPanel('login'); return false;">Sign in</a></p>
                 </form>
+
+                <!-- Password Reset — Request Panel -->
+                <div id="resetRequestPanel" class="auth-form" style="display:none">
+                    <button class="auth-back-btn" onclick="switchAuthPanel('login')">&larr; Back to Sign In</button>
+                    <h3 class="auth-panel-heading">Reset your password</h3>
+                    <p class="auth-panel-intro">Enter your username and the email address registered to your account. We'll send you a reset code.</p>
+                    <form onsubmit="handleResetRequest(event)">
+                        <div class="form-group">
+                            <label for="resetUsername">Username:</label>
+                            <input type="text" id="resetUsername" required placeholder="Your username" autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="resetEmail">Email Address:</label>
+                            <input type="email" id="resetEmail" required placeholder="Your registered email">
+                        </div>
+                        <div id="resetRequestMsg" class="auth-error" style="display:none"></div>
+                        <button type="submit" class="btn btn-primary btn-full" id="resetRequestBtn">Send Reset Code</button>
+                    </form>
+                </div>
+
+                <!-- Password Reset — Confirm Panel -->
+                <div id="resetConfirmPanel" class="auth-form" style="display:none">
+                    <button class="auth-back-btn" onclick="switchAuthPanel('reset-request')">&larr; Back</button>
+                    <h3 class="auth-panel-heading">Enter your reset code</h3>
+                    <div id="resetEmailSentNotice" class="auth-email-notice"></div>
+                    <form onsubmit="handleResetConfirm(event)">
+                        <div class="form-group">
+                            <label for="resetToken">Reset Code:</label>
+                            <input type="text" id="resetToken" required placeholder="e.g. AB12CD34"
+                                   autocomplete="off" oninput="this.value = this.value.toUpperCase()">
+                        </div>
+                        <div class="form-group">
+                            <label for="resetNewPw">New Password:</label>
+                            <input type="password" id="resetNewPw" required placeholder="New password"
+                                   autocomplete="new-password" oninput="updateResetPasswordChecklist(this.value); updateResetPasswordMatch()">
+                            <ul class="password-checklist" id="resetPasswordChecklist" aria-live="polite">
+                                <li class="pc-mode-label" id="rpc-mode-label">Traditional password:</li>
+                                <li id="rpc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
+                                <li id="rpc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
+                                <li id="rpc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
+                                <li id="rpc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
+                                <li id="rpc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                                <li class="pc-divider">— or use a passphrase —</li>
+                                <li id="rpc-pp-length" class="pc-rule pc-muted"><span class="pc-icon">○</span> 20+ characters total</li>
+                                <li id="rpc-pp-upper"  class="pc-rule pc-muted"><span class="pc-icon">○</span> 2+ uppercase letters (one per word)</li>
+                                <li id="rpc-pp-number" class="pc-rule pc-muted"><span class="pc-icon">○</span> 1+ number</li>
+                            </ul>
+                        </div>
+                        <div class="form-group">
+                            <label for="resetConfirmPw">Confirm New Password:</label>
+                            <input type="password" id="resetConfirmPw" required placeholder="Re-enter new password"
+                                   autocomplete="new-password" oninput="updateResetPasswordMatch()">
+                            <p class="password-match-msg" id="resetPasswordMatchMsg" aria-live="polite" style="display:none"></p>
+                        </div>
+                        <div id="resetConfirmMsg" class="auth-error" style="display:none"></div>
+                        <button type="submit" class="btn btn-primary btn-full" id="resetConfirmBtn">Set New Password</button>
+                    </form>
+                </div>
+
+                <!-- 2FA Verification Panel -->
+                <div id="twoFaPanel" class="auth-form" style="display:none">
+                    <h3 class="auth-panel-heading">🔒 Two-factor verification</h3>
+                    <div id="twoFaEmailNotice" class="auth-email-notice"></div>
+                    <p class="auth-panel-intro">Enter the 6-digit code from your email. It expires in 10 minutes.</p>
+                    <form onsubmit="handleTwoFaVerify(event)">
+                        <div class="form-group">
+                            <label for="twoFaCode">Verification Code:</label>
+                            <input type="text" id="twoFaCode" required placeholder="123456"
+                                   maxlength="6" autocomplete="one-time-code"
+                                   oninput="this.value=this.value.replace(/\D/g,'')">
+                        </div>
+                        <div id="twoFaError" class="auth-error" style="display:none"></div>
+                        <button type="submit" class="btn btn-primary btn-full" id="twoFaBtn">Verify</button>
+                        <p class="auth-switch"><a href="#" onclick="switchAuthPanel('login'); return false;">Cancel &mdash; sign in as a different user</a></p>
+                    </form>
+                </div>
             </div>
+            <p class="auth-browse-link"><a href="#" onclick="closeAuthOverlay(); return false;">Browse events without signing in &rsaquo;</a></p>
         </div>
     </div>
 
@@ -227,14 +313,18 @@
                 <h1>🎫 Ticketyboo</h1>
                 <p class="tagline">Your ticket to amazing events!</p>
             </div>
+            <div id="authActions" class="user-info">
+                <button class="btn btn-signin" onclick="showAuthOverlay('login')">Sign In / Register</button>
+            </div>
             <div id="userInfo" class="user-info" style="display:none">
                 <span id="welcomeMessage" class="welcome-message"></span>
+                <button class="btn btn-account" onclick="openAccountModal()">My Account</button>
                 <button class="btn btn-logout" onclick="confirmLogout()">Sign Out</button>
             </div>
         </div>
     </header>
 
-    <main class="container" id="mainContent" style="display:none">
+    <main class="container" id="mainContent">
         <section class="filters">
             <h2>Browse Events</h2>
             <div class="filter-buttons">
@@ -277,6 +367,189 @@
                     <button class="btn btn-primary" onclick="performLogout()">Yes, Sign Out</button>
                     <button class="btn btn-secondary" onclick="document.getElementById('logoutModal').style.display='none'">Cancel</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Account Modal -->
+    <div id="accountModal" class="modal">
+        <div class="modal-content modal-content--account">
+            <span class="close" onclick="closeAccountModal()">&times;</span>
+            <h2 class="account-modal-title">My Account</h2>
+
+            <div class="account-tabs">
+                <button class="account-tab active" id="accountTabProfile" onclick="switchAccountTab('profile')">Profile</button>
+                <button class="account-tab" id="accountTabSecurity" onclick="switchAccountTab('security')">Security</button>
+                <button class="account-tab" id="accountTabCards" onclick="switchAccountTab('cards')">Payment Cards</button>
+            </div>
+
+            <!-- Profile Panel -->
+            <div id="accountPanelProfile" class="account-panel">
+                <form id="accountProfileForm" onsubmit="saveProfile(event)">
+                    <div class="form-row form-row--title">
+                        <div class="form-group">
+                            <label for="acctTitle">Title:</label>
+                            <select id="acctTitle">
+                                <option value="">None</option>
+                                <option value="Mr">Mr</option>
+                                <option value="Mrs">Mrs</option>
+                                <option value="Miss">Miss</option>
+                                <option value="Ms">Ms</option>
+                                <option value="Mx">Mx</option>
+                                <option value="Dr">Dr</option>
+                                <option value="Prof">Prof</option>
+                                <option value="Rev">Rev</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="acctFirstName">First Name:</label>
+                            <input type="text" id="acctFirstName" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="acctMiddleName">Middle Name: <span class="label-optional">(optional)</span></label>
+                            <input type="text" id="acctMiddleName">
+                        </div>
+                        <div class="form-group">
+                            <label for="acctLastName">Last Name:</label>
+                            <input type="text" id="acctLastName" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="acctKnownAs">Known As: <span class="label-optional">(optional)</span></label>
+                        <input type="text" id="acctKnownAs">
+                    </div>
+                    <div class="form-group">
+                        <label for="acctEmail">Email Address:</label>
+                        <input type="email" id="acctEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="acctPhone">Phone Number: <span class="label-optional">(optional)</span></label>
+                        <input type="tel" id="acctPhone">
+                    </div>
+                    <div class="form-section-divider"><span>Address</span></div>
+                    <div class="form-group">
+                        <label for="acctAddressLine1">Address Line 1:</label>
+                        <input type="text" id="acctAddressLine1">
+                    </div>
+                    <div class="form-group">
+                        <label for="acctAddressLine2">Address Line 2: <span class="label-optional">(optional)</span></label>
+                        <input type="text" id="acctAddressLine2">
+                    </div>
+                    <div class="form-group">
+                        <label for="acctPostcode">Postcode:</label>
+                        <input type="text" id="acctPostcode" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="acctCity">City / Town:</label>
+                            <input type="text" id="acctCity">
+                        </div>
+                        <div class="form-group">
+                            <label for="acctCounty">County:</label>
+                            <input type="text" id="acctCounty">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="acctCountry">Country:</label>
+                        <input type="text" id="acctCountry">
+                    </div>
+                    <div id="acctProfileMsg" class="account-feedback" style="display:none"></div>
+                    <button type="submit" class="btn btn-primary">Save Profile</button>
+                </form>
+            </div>
+
+            <!-- Security Panel -->
+            <div id="accountPanelSecurity" class="account-panel" style="display:none">
+                <div class="form-section-divider"><span>Two-factor Authentication</span></div>
+                <div class="twofa-toggle-row">
+                    <div>
+                        <strong>Email verification on sign-in</strong>
+                        <p class="form-section-note">When enabled, you'll be sent a one-time code to your registered email each time you sign in.</p>
+                    </div>
+                    <label class="toggle-switch" aria-label="Enable two-factor authentication">
+                        <input type="checkbox" id="acctTwoFaToggle" onchange="saveTwoFaSetting(this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div id="acctTwoFaMsg" class="account-feedback" style="display:none"></div>
+
+                <div class="form-section-divider" style="margin-top:1.25rem"><span>Change Username</span></div>
+                <form id="accountUsernameForm" onsubmit="saveUsername(event)">
+                    <div class="form-group">
+                        <label for="acctUsername">New Username:</label>
+                        <input type="text" id="acctUsername" required autocomplete="username">
+                    </div>
+                    <div id="acctUsernameMsg" class="account-feedback" style="display:none"></div>
+                    <button type="submit" class="btn btn-primary">Change Username</button>
+                </form>
+
+                <div class="form-section-divider" style="margin-top:1.75rem"><span>Change Password</span></div>
+                <form id="accountPasswordForm" onsubmit="savePassword(event)">
+                    <div class="form-group">
+                        <label for="acctCurrentPw">Current Password:</label>
+                        <input type="password" id="acctCurrentPw" required autocomplete="current-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="acctNewPw">New Password:</label>
+                        <input type="password" id="acctNewPw" required autocomplete="new-password"
+                               oninput="updateAccountPasswordChecklist(this.value); updateAccountPasswordMatch()">
+                        <ul class="password-checklist" id="acctPasswordChecklist" aria-live="polite">
+                            <li class="pc-mode-label" id="apc-mode-label">Traditional password:</li>
+                            <li id="apc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
+                            <li id="apc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
+                            <li id="apc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
+                            <li id="apc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
+                            <li id="apc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                            <li class="pc-divider">— or use a passphrase —</li>
+                            <li id="apc-pp-length" class="pc-rule pc-muted"><span class="pc-icon">○</span> 20+ characters total</li>
+                            <li id="apc-pp-upper"  class="pc-rule pc-muted"><span class="pc-icon">○</span> 2+ uppercase letters (one per word)</li>
+                            <li id="apc-pp-number" class="pc-rule pc-muted"><span class="pc-icon">○</span> 1+ number</li>
+                        </ul>
+                    </div>
+                    <div class="form-group">
+                        <label for="acctConfirmPw">Confirm New Password:</label>
+                        <input type="password" id="acctConfirmPw" required autocomplete="new-password"
+                               oninput="updateAccountPasswordMatch()">
+                        <p class="password-match-msg" id="acctPasswordMatchMsg" aria-live="polite" style="display:none"></p>
+                    </div>
+                    <div id="acctPasswordMsg" class="account-feedback" style="display:none"></div>
+                    <button type="submit" class="btn btn-primary">Change Password</button>
+                </form>
+            </div>
+
+            <!-- Payment Cards Panel -->
+            <div id="accountPanelCards" class="account-panel" style="display:none">
+                <p class="form-section-note">Your saved payment cards. The full card number is never stored &mdash; only the last four digits and expiry date are kept.</p>
+
+                <div id="savedCardsList" class="saved-cards-list"></div>
+
+                <div class="form-section-divider"><span>Add a New Card</span></div>
+                <form id="addCardForm" onsubmit="handleAddCard(event)">
+                    <div class="form-group">
+                        <label for="cardNickname">Nickname: <span class="label-optional">(optional)</span></label>
+                        <input type="text" id="cardNickname" placeholder="e.g. My Visa, Work Card">
+                    </div>
+                    <div class="form-group">
+                        <label for="savedCardNumber">Card Number:</label>
+                        <input type="text" id="savedCardNumber" required placeholder="1234 5678 9012 3456"
+                               maxlength="23" oninput="formatCardNumber(this)" autocomplete="cc-number">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="savedCardExpiry">Expiry Date:</label>
+                            <input type="text" id="savedCardExpiry" required placeholder="MM/YY"
+                                   maxlength="5" oninput="formatCardExpiry(this)" autocomplete="cc-exp">
+                        </div>
+                        <div class="form-group">
+                            <label for="savedCardholderName">Cardholder Name:</label>
+                            <input type="text" id="savedCardholderName" required placeholder="JOHN DOE" autocomplete="cc-name">
+                        </div>
+                    </div>
+                    <div id="addCardMsg" class="account-feedback" style="display:none"></div>
+                    <button type="submit" class="btn btn-primary" id="addCardBtn">Save Card</button>
+                </form>
             </div>
         </div>
     </div>

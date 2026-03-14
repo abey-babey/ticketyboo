@@ -3,15 +3,18 @@ let currentFilter = 'all';
 let events = [];
 let currentUser = null;
 let authToken = null;
+let pendingChallengeId = null;
 
 // DOM Elements
 const eventsList = document.getElementById('eventsList');
 const filterButtons = document.querySelectorAll('.filter-btn');
 const eventModal = document.getElementById('eventModal');
 const confirmationModal = document.getElementById('confirmationModal');
+const accountModal = document.getElementById('accountModal');
 const authOverlay = document.getElementById('authOverlay');
 const mainContent = document.getElementById('mainContent');
 const userInfo = document.getElementById('userInfo');
+const authActions = document.getElementById('authActions');
 const welcomeMessage = document.getElementById('welcomeMessage');
 
 // Initialize
@@ -49,7 +52,7 @@ function clearToken() {
 async function checkSession() {
     const token = getStoredToken();
     if (!token) {
-        showAuthOverlay();
+        showAsGuest();
         return;
     }
     try {
@@ -61,17 +64,30 @@ async function checkSession() {
             setLoggedIn(data.user, token);
         } else {
             clearToken();
-            showAuthOverlay();
+            showAsGuest();
         }
     } catch {
-        showAuthOverlay();
+        showAsGuest();
     }
 }
 
-function showAuthOverlay() {
+function showAuthOverlay(tab) {
     authOverlay.style.display = 'flex';
-    mainContent.style.display = 'none';
+    if (tab) switchAuthTab(tab);
+}
+
+function closeAuthOverlay() {
+    authOverlay.style.display = 'none';
+}
+
+function showAsGuest() {
+    currentUser = null;
+    authToken = null;
+    authOverlay.style.display = 'none';
+    mainContent.style.display = 'block';
+    authActions.style.display = 'flex';
     userInfo.style.display = 'none';
+    loadEvents();
 }
 
 function setLoggedIn(user, token) {
@@ -80,31 +96,48 @@ function setLoggedIn(user, token) {
     storeToken(token);
     authOverlay.style.display = 'none';
     mainContent.style.display = 'block';
+    authActions.style.display = 'none';
     userInfo.style.display = 'flex';
     welcomeMessage.textContent = 'Welcome, ' + (user.knownAs || user.firstName) + '!';
     loadEvents();
 }
 
-function switchAuthTab(tab) {
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-    const tabLogin = document.getElementById('tabLogin');
-    const tabRegister = document.getElementById('tabRegister');
+function switchAuthPanel(panel) {
+    const allPanels = ['loginForm', 'registerForm', 'resetRequestPanel', 'resetConfirmPanel', 'twoFaPanel'];
+    const tabPanels = ['login', 'register'];
+    const authTabs = document.querySelector('.auth-tabs');
 
-    if (tab === 'login') {
-        loginForm.style.display = 'block';
-        registerForm.style.display = 'none';
-        tabLogin.classList.add('active');
-        tabRegister.classList.remove('active');
-    } else {
-        loginForm.style.display = 'none';
-        registerForm.style.display = 'block';
-        tabLogin.classList.remove('active');
-        tabRegister.classList.add('active');
+    allPanels.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+
+    const showTabs = tabPanels.includes(panel);
+    if (authTabs) authTabs.style.display = showTabs ? 'flex' : 'none';
+
+    if (panel === 'login') {
+        document.getElementById('loginForm').style.display = 'block';
+        document.getElementById('tabLogin').classList.add('active');
+        document.getElementById('tabRegister').classList.remove('active');
+        document.getElementById('loginError').style.display = 'none';
+    } else if (panel === 'register') {
+        document.getElementById('registerForm').style.display = 'block';
+        document.getElementById('tabLogin').classList.remove('active');
+        document.getElementById('tabRegister').classList.add('active');
+        document.getElementById('registerError').style.display = 'none';
+    } else if (panel === 'reset-request') {
+        const el = document.getElementById('resetRequestPanel');
+        if (el) el.style.display = 'block';
+    } else if (panel === 'reset-confirm') {
+        const el = document.getElementById('resetConfirmPanel');
+        if (el) el.style.display = 'block';
+    } else if (panel === '2fa') {
+        const el = document.getElementById('twoFaPanel');
+        if (el) el.style.display = 'block';
     }
-    document.getElementById('loginError').style.display = 'none';
-    document.getElementById('registerError').style.display = 'none';
 }
+
+function switchAuthTab(tab) { switchAuthPanel(tab); }
 
 // ─── Cookie Consent ──────────────────────────────────────────────────────────
 
@@ -182,7 +215,14 @@ function updatePasswordMatch() {
     msg.textContent  = matched ? '✓ Passwords match' : '✗ Passwords do not match';
 }
 
-// Returns an object with each rule's result { length, upper, lower, number, special }
+// ─── Password / Passphrase validation ────────────────────────────────────────
+// Mirrors lib/passwordValidator.js — two valid credential styles:
+//   Traditional password : 8+ chars, upper, lower, digit, special char
+//   Passphrase           : 20+ chars, 2+ uppercase letters, 1+ digit
+
+const PASSPHRASE_MIN = 20;
+
+// Audit object for the traditional password rules
 function validatePassword(password) {
     return {
         length:  password.length >= 8,
@@ -193,25 +233,91 @@ function validatePassword(password) {
     };
 }
 
-// Updates the live checklist UI beneath the password field
-function updatePasswordChecklist(value) {
-    const rules = validatePassword(value);
-    const map = {
-        'pc-length':  rules.length,
-        'pc-upper':   rules.upper,
-        'pc-lower':   rules.lower,
-        'pc-number':  rules.number,
-        'pc-special': rules.special
+// Audit object for the passphrase rules
+function validatePassphrase(password) {
+    const upperCount = (password.match(/[A-Z]/g) || []).length;
+    return {
+        length: password.length >= PASSPHRASE_MIN,
+        upper:  upperCount >= 2,
+        number: /[0-9]/.test(password)
     };
-    for (const [id, passed] of Object.entries(map)) {
+}
+
+// Returns true if either credential style passes — used in submit guards
+function isValidCredential(password) {
+    if (Object.values(validatePassword(password)).every(Boolean)) return true;
+    return Object.values(validatePassphrase(password)).every(Boolean);
+}
+
+/**
+ * Updates a dual-mode password checklist.
+ * @param {string} value   Current input value
+ * @param {string} prefix  ID prefix: 'pc' | 'apc' | 'rpc'
+ */
+function updateChecklistForPrefix(value, prefix) {
+    const isPassphrase = value.length >= PASSPHRASE_MIN;
+    const pwRules = validatePassword(value);
+    const ppRules = validatePassphrase(value);
+
+    // Traditional items
+    const pwMap = {
+        [`${prefix}-length`]:  pwRules.length,
+        [`${prefix}-upper`]:   pwRules.upper,
+        [`${prefix}-lower`]:   pwRules.lower,
+        [`${prefix}-number`]:  pwRules.number,
+        [`${prefix}-special`]: pwRules.special
+    };
+    for (const [id, passed] of Object.entries(pwMap)) {
         const el = document.getElementById(id);
         if (!el) continue;
         const icon = el.querySelector('.pc-icon');
-        el.classList.toggle('pc-pass', passed);
-        el.classList.toggle('pc-fail', !passed);
-        icon.textContent = passed ? '✓' : '✗';
+        if (isPassphrase) {
+            // Fade traditional section — neither pass nor fail
+            el.classList.remove('pc-pass', 'pc-fail');
+            el.classList.add('pc-muted');
+            icon.textContent = '○';
+        } else {
+            el.classList.remove('pc-muted');
+            el.classList.toggle('pc-pass', passed);
+            el.classList.toggle('pc-fail', !passed);
+            icon.textContent = passed ? '✓' : '✗';
+        }
+    }
+
+    // Mode label
+    const labelEl = document.getElementById(`${prefix}-mode-label`);
+    if (labelEl) {
+        labelEl.textContent = isPassphrase ? 'Passphrase (active):' : 'Traditional password:';
+        labelEl.classList.toggle('pc-mode-active', true);
+    }
+
+    // Passphrase items
+    const ppMap = {
+        [`${prefix}-pp-length`]: ppRules.length,
+        [`${prefix}-pp-upper`]:  ppRules.upper,
+        [`${prefix}-pp-number`]: ppRules.number
+    };
+    for (const [id, passed] of Object.entries(ppMap)) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const icon = el.querySelector('.pc-icon');
+        if (!isPassphrase) {
+            el.classList.remove('pc-pass', 'pc-fail');
+            el.classList.add('pc-muted');
+            icon.textContent = '○';
+        } else {
+            el.classList.remove('pc-muted');
+            el.classList.toggle('pc-pass', passed);
+            el.classList.toggle('pc-fail', !passed);
+            icon.textContent = passed ? '✓' : '✗';
+        }
     }
 }
+
+// Public wrappers — called from HTML oninput handlers
+function updatePasswordChecklist(value)       { updateChecklistForPrefix(value, 'pc');  }
+function updateResetPasswordChecklist(value)   { updateChecklistForPrefix(value, 'rpc'); }
+function updateAccountPasswordChecklist(value) { updateChecklistForPrefix(value, 'apc'); }
 
 async function handleLogin(e) {
     e.preventDefault();
@@ -232,7 +338,19 @@ async function handleLogin(e) {
         });
         const data = await res.json();
         if (res.ok) {
-            setLoggedIn(data.user, data.token);
+            if (data.requiresTwoFa) {
+                pendingChallengeId = data.challengeId;
+                const notice = document.getElementById('twoFaEmailNotice');
+                if (notice) {
+                    notice.innerHTML = data.previewUrl
+                        ? `📧 A verification code has been sent. <a href="${data.previewUrl}" target="_blank" rel="noopener">View it in Ethereal →</a>`
+                        : '📧 A verification code has been sent to your registered email address.';
+                    notice.style.display = 'block';
+                }
+                switchAuthPanel('2fa');
+            } else {
+                setLoggedIn(data.user, data.token);
+            }
         } else {
             errorEl.textContent = data.error || 'Login failed.';
             errorEl.style.display = 'block';
@@ -279,10 +397,9 @@ async function handleRegister(e) {
 
     const passwordConfirm = document.getElementById('regPasswordConfirm').value;
 
-    // Client-side password complexity guard
-    const pwRules = validatePassword(password);
-    if (!Object.values(pwRules).every(Boolean)) {
-        errorEl.textContent = 'Please ensure your password meets all the requirements shown below the password field.';
+    // Client-side password complexity guard (traditional OR passphrase)
+    if (!isValidCredential(password)) {
+        errorEl.textContent = 'Please ensure your password meets the requirements shown below (traditional password or passphrase).';
         errorEl.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Create Account';
@@ -321,6 +438,149 @@ async function handleRegister(e) {
     }
 }
 
+// ─── Password Reset ──────────────────────────────────────────────────────────
+
+async function handleResetRequest(e) {
+    e.preventDefault();
+    const btn     = document.getElementById('resetRequestBtn');
+    const errorEl = document.getElementById('resetRequestMsg');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    errorEl.style.display = 'none';
+
+    const username      = document.getElementById('resetUsername').value.trim();
+    const customerEmail = document.getElementById('resetEmail').value.trim();
+
+    try {
+        const res  = await fetch('/api/auth/reset-password/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, customerEmail })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            const notice = document.getElementById('resetEmailSentNotice');
+            if (notice) {
+                notice.innerHTML = data.previewUrl
+                    ? `📧 Reset email sent! <a href="${data.previewUrl}" target="_blank" rel="noopener">View it in Ethereal →</a>`
+                    : '📧 Reset email sent! Check your inbox for the reset token.';
+                notice.style.display = 'block';
+            }
+            switchAuthPanel('reset-confirm');
+        } else {
+            errorEl.textContent = data.error || 'Request failed.';
+            errorEl.style.display = 'block';
+        }
+    } catch {
+        errorEl.textContent = 'Unable to connect. Please try again.';
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Reset Email';
+    }
+}
+
+async function handleResetConfirm(e) {
+    e.preventDefault();
+    const btn     = document.getElementById('resetConfirmBtn');
+    const errorEl = document.getElementById('resetConfirmMsg');
+    btn.disabled = true;
+    btn.textContent = 'Resetting...';
+    errorEl.style.display = 'none';
+
+    const token    = document.getElementById('resetToken').value.trim();
+    const newPw    = document.getElementById('resetNewPw').value;
+    const confirmPw = document.getElementById('resetConfirmPw').value;
+
+    if (!isValidCredential(newPw)) {
+        errorEl.textContent = 'Password does not meet the requirements (traditional password or 20+ character passphrase).';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Reset Password';
+        return;
+    }
+    if (newPw !== confirmPw) {
+        errorEl.textContent = 'Passwords do not match.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Reset Password';
+        return;
+    }
+
+    try {
+        const res  = await fetch('/api/auth/reset-password/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, newPassword: newPw })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            switchAuthPanel('login');
+            const loginError = document.getElementById('loginError');
+            if (loginError) {
+                loginError.textContent = '✓ Password reset successfully. Please sign in with your new password.';
+                loginError.style.cssText = 'display:block; color: #2e7d32; background:#e8f5e9; border-color:#a5d6a7;';
+            }
+        } else {
+            errorEl.textContent = data.error || 'Reset failed.';
+            errorEl.style.display = 'block';
+        }
+    } catch {
+        errorEl.textContent = 'Unable to connect. Please try again.';
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Reset Password';
+    }
+}
+
+// ─── Two-Factor Authentication ───────────────────────────────────────────────
+
+async function handleTwoFaVerify(e) {
+    e.preventDefault();
+    const btn     = document.getElementById('twoFaBtn');
+    const errorEl = document.getElementById('twoFaError');
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+    errorEl.style.display = 'none';
+
+    const code = document.getElementById('twoFaCode').value.trim();
+
+    try {
+        const res  = await fetch('/api/auth/verify-2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ challengeId: pendingChallengeId, otp: code })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            pendingChallengeId = null;
+            setLoggedIn(data.user, data.token);
+        } else {
+            errorEl.textContent = data.error || 'Verification failed.';
+            errorEl.style.display = 'block';
+        }
+    } catch {
+        errorEl.textContent = 'Unable to connect. Please try again.';
+        errorEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify Code';
+    }
+}
+
+function updateResetPasswordMatch() {
+    const pw      = document.getElementById('resetNewPw').value;
+    const confirm = document.getElementById('resetConfirmPw').value;
+    const msg     = document.getElementById('resetPasswordMatchMsg');
+    if (!msg) return;
+    if (!confirm) { msg.style.display = 'none'; return; }
+    const matched = pw === confirm;
+    msg.style.display = 'block';
+    msg.className = 'password-match-msg ' + (matched ? 'pc-pass' : 'pc-fail');
+    msg.textContent = matched ? '✓ Passwords match' : '✗ Passwords do not match';
+}
+
 function confirmLogout() {
     document.getElementById('logoutModal').style.display = 'block';
 }
@@ -339,8 +599,9 @@ async function performLogout() {
     // Reset forms
     document.getElementById('loginForm').reset();
     document.getElementById('registerForm').reset();
-    switchAuthTab('login');
-    showAuthOverlay();
+    pendingChallengeId = null;
+    switchAuthPanel('login');
+    showAsGuest();
 }
 
 // Setup filter buttons
@@ -366,11 +627,17 @@ function setupModals() {
     });
 
     window.addEventListener('click', (e) => {
+        if (e.target === authOverlay) {
+            closeAuthOverlay();
+        }
         if (e.target === eventModal) {
             eventModal.style.display = 'none';
         }
         if (e.target === confirmationModal) {
             confirmationModal.style.display = 'none';
+        }
+        if (e.target === accountModal) {
+            closeAccountModal();
         }
     });
 }
@@ -451,8 +718,11 @@ async function showEventDetails(eventId) {
             </div>
             
             <div class="purchase-form">
-                <h3>Purchase Tickets</h3>
-                <form id="purchaseForm" onsubmit="handlePurchase(event, ${event.id})">
+                <h3>Purchase Tickets</h3>                ${!currentUser ? `
+                <div class="guest-purchase-notice">
+                    <span class="guest-purchase-notice__icon">💡</span>
+                    <p><a href="#" onclick="eventModal.style.display='none'; showAuthOverlay('login'); return false;">Sign in or create an account</a> to save your details and view purchase history &mdash; or fill in the form below to continue as a guest.</p>
+                </div>` : ''}                <form id="purchaseForm" onsubmit="handlePurchase(event, ${event.id})">
                     <div class="form-group">
                         <label for="quantity">Number of Tickets:</label>
                         <input 
@@ -670,4 +940,332 @@ function showConfirmation(purchase) {
     `;
     
     confirmationModal.style.display = 'block';
+}
+
+// ─── My Account Modal ──────────────────────────────────────────────────────
+
+function openAccountModal() {
+    accountModal.style.display = 'block';
+    // Always land on Profile tab and populate it
+    switchAccountTab('profile');
+}
+
+function closeAccountModal() {
+    accountModal.style.display = 'none';
+}
+
+function switchAccountTab(tab) {
+    ['profile', 'security', 'cards'].forEach(t => {
+        const tabBtn   = document.getElementById('accountTab'   + t.charAt(0).toUpperCase() + t.slice(1));
+        const tabPanel = document.getElementById('accountPanel' + t.charAt(0).toUpperCase() + t.slice(1));
+        const active   = t === tab;
+        tabBtn.classList.toggle('active', active);
+        tabPanel.style.display = active ? 'block' : 'none';
+    });
+    if (tab === 'profile')   loadAccountProfile();
+    if (tab === 'security' && currentUser) {
+        document.getElementById('acctUsername').value = currentUser.username || '';
+        const toggle = document.getElementById('acctTwoFaToggle');
+        if (toggle) toggle.checked = currentUser.twoFactorEnabled || false;
+    }
+    if (tab === 'cards')     loadSavedCards();
+}
+
+function loadAccountProfile() {
+    if (!currentUser) return;
+    document.getElementById('acctTitle').value        = currentUser.title        || '';
+    document.getElementById('acctFirstName').value    = currentUser.firstName    || '';
+    document.getElementById('acctMiddleName').value   = currentUser.middleName   || '';
+    document.getElementById('acctLastName').value     = currentUser.lastName     || '';
+    document.getElementById('acctKnownAs').value      = currentUser.knownAs      || '';
+    document.getElementById('acctEmail').value        = currentUser.customerEmail || '';
+    document.getElementById('acctPhone').value        = currentUser.phone        || '';
+    document.getElementById('acctAddressLine1').value = currentUser.addressLine1 || '';
+    document.getElementById('acctAddressLine2').value = currentUser.addressLine2 || '';
+    document.getElementById('acctPostcode').value     = currentUser.postcode     || '';
+    document.getElementById('acctCity').value         = currentUser.city         || '';
+    document.getElementById('acctCounty').value       = currentUser.county       || '';
+    document.getElementById('acctCountry').value      = currentUser.country      || '';
+}
+
+async function saveProfile(e) {
+    e.preventDefault();
+    const btn   = e.target.querySelector('button[type="submit"]');
+    const msgEl = document.getElementById('acctProfileMsg');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    msgEl.style.display = 'none';
+
+    const payload = {
+        title:        document.getElementById('acctTitle').value,
+        firstName:    document.getElementById('acctFirstName').value,
+        middleName:   document.getElementById('acctMiddleName').value,
+        lastName:     document.getElementById('acctLastName').value,
+        knownAs:      document.getElementById('acctKnownAs').value,
+        customerEmail: document.getElementById('acctEmail').value,
+        phone:        document.getElementById('acctPhone').value,
+        addressLine1: document.getElementById('acctAddressLine1').value,
+        addressLine2: document.getElementById('acctAddressLine2').value,
+        postcode:     document.getElementById('acctPostcode').value,
+        city:         document.getElementById('acctCity').value,
+        county:       document.getElementById('acctCounty').value,
+        country:      document.getElementById('acctCountry').value
+    };
+
+    try {
+        const res  = await fetch('/api/account', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = { ...currentUser, ...data.user };
+            welcomeMessage.textContent = 'Welcome, ' + (currentUser.knownAs || currentUser.firstName) + '!';
+            showAccountMsg('acctProfileMsg', 'Profile saved successfully.', 'success');
+        } else {
+            showAccountMsg('acctProfileMsg', data.error || 'Failed to save profile.', 'error');
+        }
+    } catch {
+        showAccountMsg('acctProfileMsg', 'Could not connect to server.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Profile';
+    }
+}
+
+async function saveUsername(e) {
+    e.preventDefault();
+    const btn         = e.target.querySelector('button[type="submit"]');
+    const newUsername = document.getElementById('acctUsername').value.trim();
+    if (!newUsername) return;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const res  = await fetch('/api/account', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({
+                username:     newUsername,
+                firstName:    currentUser.firstName,
+                lastName:     currentUser.lastName,
+                customerEmail: currentUser.customerEmail
+            })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = { ...currentUser, ...data.user };
+            showAccountMsg('acctUsernameMsg', 'Username updated successfully.', 'success');
+        } else {
+            showAccountMsg('acctUsernameMsg', data.error || 'Failed to update username.', 'error');
+        }
+    } catch {
+        showAccountMsg('acctUsernameMsg', 'Could not connect to server.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Change Username';
+    }
+}
+
+async function savePassword(e) {
+    e.preventDefault();
+    const btn   = e.target.querySelector('button[type="submit"]');
+    const msgEl = document.getElementById('acctPasswordMsg');
+    const currentPw = document.getElementById('acctCurrentPw').value;
+    const newPw     = document.getElementById('acctNewPw').value;
+    const confirmPw = document.getElementById('acctConfirmPw').value;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    msgEl.style.display = 'none';
+
+    if (!isValidCredential(newPw)) {
+        showAccountMsg('acctPasswordMsg', 'New password does not meet requirements (traditional password or 20+ character passphrase).', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Change Password';
+        return;
+    }
+    if (newPw !== confirmPw) {
+        showAccountMsg('acctPasswordMsg', 'New passwords do not match.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Change Password';
+        return;
+    }
+
+    try {
+        const res  = await fetch('/api/account/password', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById('accountPasswordForm').reset();
+            updateAccountPasswordChecklist('');
+            showAccountMsg('acctPasswordMsg', 'Password changed successfully.', 'success');
+        } else {
+            showAccountMsg('acctPasswordMsg', data.error || 'Failed to change password.', 'error');
+        }
+    } catch {
+        showAccountMsg('acctPasswordMsg', 'Could not connect to server.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Change Password';
+    }
+}
+
+function updateAccountPasswordMatch() {
+    const pw      = document.getElementById('acctNewPw').value;
+    const confirm = document.getElementById('acctConfirmPw').value;
+    const msg     = document.getElementById('acctPasswordMatchMsg');
+    if (!msg) return;
+    if (!confirm) { msg.style.display = 'none'; return; }
+    const matched = pw === confirm;
+    msg.style.display = 'block';
+    msg.className = 'password-match-msg ' + (matched ? 'pc-pass' : 'pc-fail');
+    msg.textContent = matched ? '✓ Passwords match' : '✗ Passwords do not match';
+}
+
+async function saveTwoFaSetting(enabled) {
+    const msgEl = document.getElementById('acctTwoFaMsg');
+    if (msgEl) msgEl.style.display = 'none';
+    try {
+        const res  = await fetch('/api/account', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({
+                twoFactorEnabled: enabled,
+                firstName:        currentUser.firstName,
+                lastName:         currentUser.lastName,
+                customerEmail:    currentUser.customerEmail
+            })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = { ...currentUser, ...data.user };
+            showAccountMsg('acctTwoFaMsg', enabled ? '2FA enabled.' : '2FA disabled.', 'success');
+        } else {
+            showAccountMsg('acctTwoFaMsg', data.error || 'Failed to update 2FA setting.', 'error');
+            // Revert toggle on failure
+            const toggle = document.getElementById('acctTwoFaToggle');
+            if (toggle) toggle.checked = !enabled;
+        }
+    } catch {
+        showAccountMsg('acctTwoFaMsg', 'Could not connect to server.', 'error');
+        const toggle = document.getElementById('acctTwoFaToggle');
+        if (toggle) toggle.checked = !enabled;
+    }
+}
+
+// ─── Saved Cards ───────────────────────────────────────────────────────────
+
+async function loadSavedCards() {
+    const listEl = document.getElementById('savedCardsList');
+    listEl.innerHTML = '<p class="form-section-note">Loading...</p>';
+    try {
+        const res  = await fetch('/api/account/cards', {
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        const data = await res.json();
+        renderSavedCards(data.cards || []);
+    } catch {
+        listEl.innerHTML = '<p class="account-feedback account-feedback--error">Failed to load cards.</p>';
+    }
+}
+
+function renderSavedCards(cards) {
+    const listEl = document.getElementById('savedCardsList');
+    if (!cards || cards.length === 0) {
+        listEl.innerHTML = '<p class="form-section-note saved-cards-empty">No saved cards yet.</p>';
+        return;
+    }
+    listEl.innerHTML = cards.map(card => `
+        <div class="saved-card-item" data-card-id="${card.id}">
+            <div class="saved-card-info">
+                <span class="saved-card-icon">💳</span>
+                <div>
+                    <strong class="saved-card-name">${card.nickname ? escapeHtml(card.nickname) + ' \u2014 ' : ''}${card.cardMasked}</strong>
+                    <span class="saved-card-meta">${escapeHtml(card.cardholderName)} &bull; Exp: ${card.cardExpiry}</span>
+                </div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="deleteCard(${card.id})">Remove</button>
+        </div>
+    `).join('');
+}
+
+async function handleAddCard(e) {
+    e.preventDefault();
+    const btn   = document.getElementById('addCardBtn');
+    const msgEl = document.getElementById('addCardMsg');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    msgEl.style.display = 'none';
+
+    const payload = {
+        nickname:       document.getElementById('cardNickname').value.trim(),
+        cardNumber:     document.getElementById('savedCardNumber').value,
+        cardExpiry:     document.getElementById('savedCardExpiry').value,
+        cardholderName: document.getElementById('savedCardholderName').value.trim()
+    };
+
+    try {
+        const res  = await fetch('/api/account/cards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById('addCardForm').reset();
+            showAccountMsg('addCardMsg', 'Card saved successfully.', 'success');
+            loadSavedCards();
+        } else {
+            showAccountMsg('addCardMsg', data.error || 'Failed to save card.', 'error');
+        }
+    } catch {
+        showAccountMsg('addCardMsg', 'Could not connect to server.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Card';
+    }
+}
+
+async function deleteCard(cardId) {
+    if (!confirm('Remove this card from your account?')) return;
+    try {
+        const res = await fetch('/api/account/cards/' + cardId, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        if (res.ok) {
+            loadSavedCards();
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to remove card.');
+        }
+    } catch {
+        alert('Could not connect to server.');
+    }
+}
+
+// ─── Account feedback helpers ──────────────────────────────────────────────
+
+function showAccountMsg(elId, text, type) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'account-feedback account-feedback--' + type;
+    el.style.display = 'block';
+    if (type === 'success') {
+        setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }

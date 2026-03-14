@@ -73,10 +73,9 @@ Password complexity rules enforced on registration (`POST /api/auth/register`).
 
 ---
 
-### 🔲 To Do
+#### 1.4 My Account Modal & Payment Cards ✅
 
-
-A **My Account** button added to the header (alongside the existing Sign Out button). Opens a modal with two tabs.
+A **My Account** button added to the header alongside Sign Out. Opens a modal with three tabs.
 
 **Header change:**
 ```
@@ -86,61 +85,126 @@ Welcome, [Name]   [My Account]   [Sign Out]
 **Tab 1 — Profile**
 
 Displays and allows editing of:
-- Full Name
+- Title, First Name, Middle Name, Last Name, Known As
 - Email Address
 - Phone Number
-- Address Line 1
-- Address Line 2
-- Postcode
-- City / Town
-- County
-- Country
+- Address Line 1 / 2, Postcode, City / Town, County, Country
 
 Save button calls `PUT /api/account`. Shows inline success/error feedback.
 
 **Tab 2 — Security**
 
-- Change username (validates uniqueness on save)
+- Change username (validates uniqueness on save, calls `PUT /api/account` with new username)
 - Change password:
   - Current Password
-  - New Password (with real-time strength indicator — see 1.3)
+  - New Password (with real-time strength indicator — reuses 1.3 validators)
   - Confirm New Password
 
-Save calls `PUT /api/account/password` (requires current password to be correct).
+Password change calls `PUT /api/account/password` (requires current password to be correct).
+
+**Tab 3 — Payment Cards**
+
+Saved payment cards. The full card number is never stored — only the last four digits and expiry date are kept.
+
+- List of saved cards (nickname, masked number, cardholder name, expiry, Remove button)
+- Add a new card form:
+  - Nickname (optional label, e.g. "My Visa", "Work Card")
+  - Card Number (validated, masked on save)
+  - Expiry Date (MM/YY — validated, not in the past)
+  - Cardholder Name
+- Remove card button calls `DELETE /api/account/cards/:cardId`
 
 **New API endpoints:**
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/account` | Required | Returns full profile of logged-in user |
-| `PUT` | `/api/account` | Required | Updates profile fields |
+| `PUT` | `/api/account` | Required | Updates profile fields; optionally updates username (validates uniqueness) |
 | `PUT` | `/api/account/password` | Required | Changes password; requires `currentPassword` in body |
+| `GET` | `/api/account/cards` | Required | Returns list of saved cards (masked) |
+| `POST` | `/api/account/cards` | Required | Saves a new card (validates card details; stores masked version only) |
+| `DELETE` | `/api/account/cards/:cardId` | Required | Removes a saved card |
+
+**Card data model (stored per user, never includes full card number or CVV):**
+
+| Field | Notes |
+|---|---|
+| `id` | Auto-incrementing integer |
+| `nickname` | Optional label chosen by the user |
+| `cardholderName` | Stored as uppercase |
+| `cardLast4` | Last 4 digits of card number |
+| `cardMasked` | `**** **** **** XXXX` |
+| `cardExpiry` | `MM/YY` |
+| `createdAt` | ISO timestamp |
 
 **Files:** `server.js`, `public/index.html`, `public/app.js`, `public/styles.css`
 
 ---
 
-#### 1.5 Password Reset
+#### 1.6 Events-First Landing Page & Guest Purchasing ✅
+
+The application previously blocked access behind the login overlay on first load.
+
+- The events listing is now shown immediately on page load — no auth required to browse.
+- The auth overlay is hidden by default and opens as a modal when the user chooses to sign in.
+- Header shows **Sign In / Register** button when no session is active; replaced by **Welcome + My Account + Sign Out** when logged in.
+- Auth overlay has an **× close button** and a **"Browse events without signing in"** link; clicking the backdrop also closes it.
+- The purchase form is available to guests. When not logged in, an inline notice offers a quick sign-in/register link above the form, with the option to continue as a guest by filling in name and email manually.
+- Sign out now returns to the events page rather than to the login screen.
+
+**Files:** `public/index.html`, `public/app.js`, `public/styles.css`
+
+---
+
+### 🔲 Next Up
+
+#### 1.5 Password Reset (with Ethereal Email)
 
 "Forgot password?" link on the login form opens a reset flow within the auth overlay.
 
 **Flow:**
 
-1. User clicks **Forgot password?** — overlay switches to a reset panel.
+1. User clicks **Forgot password?** — overlay switches to a reset-request panel (tabs hidden).
 2. User enters their **username** and **registered email address**.
-3. Server validates the combination. If matched, a time-limited reset token is generated (expires after 15 minutes).
-4. Because this is a training app with no email service, the token is **displayed on-screen** with a clear notice explaining that in a real application it would be sent by email.
-5. User enters the token and their new password (subject to complexity rules from 1.3).
-6. On success, password is updated and the user is redirected to the login form.
+3. Server validates the combination. If matched, a time-limited 8-character reset token is generated (expires after 15 minutes).
+4. Token is sent as a proper HTML email via **Nodemailer + Ethereal** (fake SMTP capture). The response includes the Ethereal preview URL so the tester can click straight to the captured email.
+5. UI shows a confirmation with a **"View your reset email →"** link. A **"I have my code"** button advances to the confirm step.
+6. User enters the token and their new password (subject to 1.3 complexity rules).
+7. On success, password is updated and the overlay returns to the Sign In form.
 
 **New API endpoints:**
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/auth/reset-password/request` | None | Validates username + email; returns reset token (training only) |
+| `POST` | `/api/auth/reset-password/request` | None | Validates username + email; sends reset email via Ethereal; returns preview URL |
 | `POST` | `/api/auth/reset-password/confirm` | None | Validates token + sets new password |
 
-Reset tokens stored in-memory alongside sessions. Tokens expire after 15 minutes (checked on confirm).
+Reset tokens stored in-memory. Tokens expire after 15 minutes (checked on confirm).
+
+#### 1.7 Two-Factor Authentication (Email OTP via Ethereal)
+
+Opt-in per-account 2FA. When enabled, login requires a second step.
+
+**Toggle:** My Account → Security tab → *"Two-factor authentication"* toggle switch.
+
+**Login flow with 2FA enabled:**
+
+1. User enters correct username + password → server generates a 6-digit OTP (10-minute expiry) and sends it via Ethereal.
+2. Server responds with `{ requiresTwoFa: true, challengeId, previewUrl }` — no session token yet.
+3. UI transitions to a **"Check your email"** panel showing a **"View your verification email →"** link and a code entry field.
+4. User enters the OTP → `POST /api/auth/verify-2fa` → session token returned → login completes.
+
+**New API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/verify-2fa` | None | Validates OTP against challengeId; returns session token |
+
+**User model addition:** `twoFactorEnabled: boolean` (default `false`). Persisted on `PUT /api/account`.
+
+**Email dependency:** `nodemailer` (one npm package). Ethereal test account auto-created at server startup — no sign-up, no `.env` required.
+
+**Files:** `server.js`, `public/index.html`, `public/app.js`, `public/styles.css`, `package.json`
 
 **Files:** `server.js`, `public/index.html`, `public/app.js`, `public/styles.css`
 
@@ -203,9 +267,9 @@ Each purchase in the history list has a **Download Ticket** button.
 
 | File | Changes |
 |---|---|
-| `server.js` | Extended user model; `safeUser()`; address fields in register/login/session; `PUT /api/account`; `PUT /api/account/password`; password reset endpoints; `GET /api/account/purchases` |
-| `public/index.html` | Extended registration form; My Account modal; password reset panel; My Tickets tab |
-| `public/app.js` | Password strength indicator; account modal load/save; password change; reset flow; purchase history; PDF/QR download |
+| `server.js` | Extended user model; `safeUser()`; address fields in register/login/session; `PUT /api/account`; `PUT /api/account/password`; `GET`/`POST` `/api/account/cards`; `DELETE /api/account/cards/:id`; password reset endpoints; `GET /api/account/purchases` |
+| `public/index.html` | Extended registration form; My Account modal (Profile, Security, Cards tabs); password reset panel; My Tickets tab |
+| `public/app.js` | Password strength indicator; account modal load/save; password/username change; saved cards (list, add, delete); reset flow; purchase history; PDF/QR download |
 | `public/styles.css` | Strength indicator styles; account modal styles; reset panel styles; ticket download button styles |
 
 ---
