@@ -494,6 +494,14 @@ These are lower-priority ideas that naturally complement the above work and add 
 
 - Current layout is desktop-first. Add proper responsive breakpoints for the event grid, modals, and the new admin panel.
 
+### G.7 Favicon & site metadata
+
+- Add a favicon (`public/favicon.ico` or SVG) so browser tabs and bookmarks show the Ticketyboo brand rather than a blank page icon.
+- Add `<meta name="description">` and `<meta name="theme-color">` to `public/index.html`.
+- Add Open Graph tags (`og:title`, `og:description`, `og:type`) for social sharing previews.
+
+**Files:** `public/index.html`, `public/favicon.ico` (or `public/favicon.svg`)
+
 ---
 
 ## Dependency order / suggested implementation sequence
