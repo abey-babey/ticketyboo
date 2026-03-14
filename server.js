@@ -23,5 +23,6 @@ const PORT = process.env.PORT || 3000;
 initEmailTransport().then(() => {
   app.listen(PORT, () => {
     console.log(`Ticketyboo server running on http://localhost:${PORT}`);
+    console.log('Password storage: bcryptjs (cost factor 10) — plain-text passwords are never stored.');
   });
 });

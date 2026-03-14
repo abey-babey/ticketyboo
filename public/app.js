@@ -1283,6 +1283,11 @@ async function handleAddCard(e) {
         if (res.ok) {
             document.getElementById('addCardForm').reset();
             showAccountMsg('addCardMsg', 'Card saved successfully.', 'success');
+            // Keep currentUser.savedCards in sync so the purchase form sees the new card
+            if (currentUser && data.card) {
+                if (!currentUser.savedCards) currentUser.savedCards = [];
+                currentUser.savedCards.push(data.card);
+            }
             loadSavedCards();
         } else {
             showAccountMsg('addCardMsg', data.error || 'Failed to save card.', 'error');
@@ -1303,6 +1308,10 @@ async function deleteCard(cardId) {
             headers: { 'Authorization': 'Bearer ' + authToken }
         });
         if (res.ok) {
+            // Keep currentUser.savedCards in sync so the purchase form reflects the removal
+            if (currentUser && currentUser.savedCards) {
+                currentUser.savedCards = currentUser.savedCards.filter(c => c.id !== cardId);
+            }
             loadSavedCards();
         } else {
             const data = await res.json();

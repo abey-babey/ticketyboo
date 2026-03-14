@@ -71,6 +71,43 @@ const srv = app.listen(3002, async () => {
     r = await post(base + '/api/auth/login', { username: 'tester1', password: 'Test@1234' });
     check('7) correct credentials blocked during lockout', r.status === 429, 'got ' + r.status);
 
+    // ── bcrypt verification ────────────────────────────────────────────────
+    const { store } = require('./lib/store');
+
+    // 8. Registration stores a bcrypt hash, not the plain-text password
+    const storedUser1 = store.users.find(u => u.username === 'tester1');
+    check('8) registration: password stored as bcrypt hash ($2b$)',
+      !!(storedUser1 && storedUser1.password.startsWith('$2b$')),
+      storedUser1 ? `stored: "${storedUser1.password.slice(0, 14)}…"` : 'user not found'
+    );
+    check('8a) plaintext password is NOT stored',
+      !!(storedUser1 && storedUser1.password !== 'Test@1234'),
+      storedUser1 ? `stored value: ${storedUser1.password.slice(0, 20)}` : 'n/a'
+    );
+
+    // 9. Password change: new hash stored, old hash moved to history — both bcrypt
+    r = await post(base + '/api/auth/register', {
+      username: 'bcrypt-tester', password: 'Test@1234',
+      firstName: 'A', lastName: 'B', customerEmail: 'bcrypt@test.com',
+    });
+    d = await r.json();
+    const btTok = d.token;
+    r = await put(base + '/api/account/password', {
+      currentPassword: 'Test@1234', newPassword: 'New@Pass99',
+    }, btTok);
+    check('9) password change accepted', r.status === 200, 'got ' + r.status);
+    const storedBt = store.users.find(u => u.username === 'bcrypt-tester');
+    check('10) updated password is a bcrypt hash',
+      !!(storedBt && storedBt.password.startsWith('$2b$')),
+      storedBt ? `stored: "${storedBt.password.slice(0, 14)}…"` : 'user not found'
+    );
+    const historyOk = storedBt && storedBt.passwordHistory.length > 0 &&
+      storedBt.passwordHistory.every(h => typeof h === 'string' && h.startsWith('$2b$'));
+    check('11) password history entries are bcrypt hashes',
+      !!historyOk,
+      storedBt ? `history[0]: "${(storedBt.passwordHistory[0] || '').slice(0, 14)}…"` : 'user not found'
+    );
+
   } catch (e) {
     console.error('UNCAUGHT ERROR:', e.message);
     failed++;
