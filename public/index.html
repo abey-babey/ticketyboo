@@ -381,6 +381,7 @@
                 <button class="account-tab active" id="accountTabProfile" onclick="switchAccountTab('profile')">Profile</button>
                 <button class="account-tab" id="accountTabSecurity" onclick="switchAccountTab('security')">Security</button>
                 <button class="account-tab" id="accountTabCards" onclick="switchAccountTab('cards')">Payment Cards</button>
+                <button class="account-tab" id="accountTabPurchases" onclick="switchAccountTab('purchases')">Purchase History</button>
             </div>
 
             <!-- Profile Panel -->
@@ -550,6 +551,12 @@
                     <div id="addCardMsg" class="account-feedback" style="display:none"></div>
                     <button type="submit" class="btn btn-primary" id="addCardBtn">Save Card</button>
                 </form>
+            </div>
+
+            <!-- Purchase History Panel -->
+            <div id="accountPanelPurchases" class="account-panel" style="display:none">
+                <p class="form-section-note">Your confirmed ticket purchases, most recent first.</p>
+                <div id="purchaseHistoryList" class="purchase-history-list"></div>
             </div>
         </div>
     </div>

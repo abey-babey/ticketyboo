@@ -3,7 +3,8 @@
 const express                   = require('express');
 const { store, safeUser }       = require('../lib/store');
 const { generateToken }         = require('../lib/tokenUtils');
-const { validatePasswordComplexity, isPasswordReused, recordPasswordHistory } = require('../lib/passwordValidator');
+const { validatePasswordComplexity, isPasswordReused, isPasswordReusedAsync,
+        hashPassword, verifyPassword, recordPasswordHistory } = require('../lib/passwordValidator');
 const { sendEmail }             = require('../lib/emailService');
 const { requireAuth }           = require('../middleware/requireAuth');
 const { checkRateLimit, recordFailedAttempt, clearAttempts, attemptsRemaining, MAX_ATTEMPTS } = require('../middleware/rateLimiter');
@@ -11,7 +12,7 @@ const { checkRateLimit, recordFailedAttempt, clearAttempts, attemptsRemaining, M
 const router = express.Router();
 
 // ─── POST /api/auth/register ─────────────────────────────────────────────────
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const {
     username, password, title, firstName, middleName, lastName, knownAs, gender,
     marketingPrefs, customerEmail, phone, addressLine1, addressLine2,
@@ -29,10 +30,12 @@ router.post('/register', (req, res) => {
   const passwordError = validatePasswordComplexity(password);
   if (passwordError) return res.status(400).json({ error: passwordError });
 
+  const passwordHash = await hashPassword(password);
+
   const user = {
     id:            store.userIdCounter++,
     username,
-    password,
+    password:      passwordHash,
     passwordHistory: [],
     title:           title        || '',
     firstName,
@@ -77,7 +80,9 @@ router.post('/login', async (req, res) => {
   const limit = checkRateLimit(username);
   if (!limit.allowed) return res.status(429).json({ error: limit.message });
 
-  const user = store.users.find(u => u.username === username && u.password === password);
+  const userRecord = store.users.find(u => u.username === username);
+  const passwordOk  = userRecord ? await verifyPassword(password, userRecord.password) : false;
+  const user = passwordOk ? userRecord : null;
   if (!user) {
     recordFailedAttempt(username);
     const remaining = attemptsRemaining(username);
@@ -222,7 +227,7 @@ router.post('/reset-password/request', async (req, res) => {
 });
 
 // ─── POST /api/auth/reset-password/confirm ───────────────────────────────────
-router.post('/reset-password/confirm', (req, res) => {
+router.post('/reset-password/confirm', async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword) {
     return res.status(400).json({ error: 'Reset token and new password are required.' });
@@ -242,12 +247,14 @@ router.post('/reset-password/confirm', (req, res) => {
   const user = store.users.find(u => u.id === entry.userId);
   if (!user) return res.status(400).json({ error: 'User not found.' });
 
-  if (isPasswordReused(newPassword, user.passwordHistory) || newPassword === user.password) {
+  const reused = (await isPasswordReusedAsync(newPassword, user.passwordHistory)) ||
+                 (await verifyPassword(newPassword, user.password));
+  if (reused) {
     return res.status(400).json({ error: 'You have used this password recently. Please choose a new one.' });
   }
 
   recordPasswordHistory(user);
-  user.password = newPassword;
+  user.password = await hashPassword(newPassword);
   store.resetTokens = store.resetTokens.filter(t => t.token !== entry.token);
   res.json({ success: true });
 });

@@ -1286,3 +1286,72 @@ footer {
     margin-top: 0;
     margin-bottom: 1.2rem;
 }
+
+/* ─── Purchase history ────────────────────────────────────────────────────── */
+
+.purchase-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.purchase-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    background: #f8f9ff;
+    border: 1px solid #e8ecff;
+    border-radius: 8px;
+}
+
+.purchase-history-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.purchase-history-name {
+    font-size: 0.95rem;
+    color: #2d2d2d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.purchase-history-meta,
+.purchase-history-ref {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.purchase-history-empty {
+    text-align: center;
+    padding: 1.5rem 0;
+}
+
+/* ─── Saved-card confirm banner (purchase form) ───────────────────────────── */
+
+.saved-card-confirm-banner {
+    padding: 0.6rem 0.9rem;
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    color: #2e7d32;
+    margin-bottom: 0.75rem;
+}
+
+/* ─── Confirmation actions row ────────────────────────────────────────────── */
+
+.confirmation-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 0.5rem;
+}
+

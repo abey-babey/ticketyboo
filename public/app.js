@@ -763,14 +763,24 @@ async function showEventDetails(eventId) {
                     
                     <div class="payment-section">
                         <h4>💳 Payment Information</h4>
-                        
+                        ${currentUser && currentUser.savedCards && currentUser.savedCards.length > 0 ? `
+                        <div class="form-group">
+                            <label for="savedCardSelect">Payment Method:</label>
+                            <select id="savedCardSelect" onchange="handleCardSelectChange()">
+                                <option value="">&plus; Enter a new card</option>
+                                ${currentUser.savedCards.map(card => `<option value="${card.id}">${card.nickname ? escapeHtml(card.nickname) + ' \u2014 ' : ''}${card.cardMasked} &bull; ${escapeHtml(card.cardholderName)} &bull; Exp ${card.cardExpiry}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div id="savedCardConfirmBanner" class="saved-card-confirm-banner" style="display:none">
+                            <span>&#10003; Using saved card: </span><strong id="savedCardConfirmLabel"></strong>
+                        </div>` : ''}
+                        <div id="newCardFields">
                         <div class="form-group">
                             <label for="cardNumber">Card Number:</label>
                             <input 
                                 type="text" 
                                 id="cardNumber" 
                                 name="cardNumber" 
-                                required
                                 placeholder="1234 5678 9012 3456"
                                 maxlength="23"
                                 autocomplete="cc-number"
@@ -785,7 +795,6 @@ async function showEventDetails(eventId) {
                                     type="text" 
                                     id="cardExpiry" 
                                     name="cardExpiry" 
-                                    required
                                     placeholder="MM/YY"
                                     maxlength="5"
                                     autocomplete="cc-exp"
@@ -799,7 +808,6 @@ async function showEventDetails(eventId) {
                                     type="text" 
                                     id="cardCvv" 
                                     name="cardCvv" 
-                                    required
                                     placeholder="123"
                                     maxlength="4"
                                     autocomplete="cc-csc"
@@ -814,10 +822,10 @@ async function showEventDetails(eventId) {
                                 type="text" 
                                 id="cardholderName" 
                                 name="cardholderName" 
-                                required
                                 placeholder="JOHN DOE"
                                 autocomplete="cc-name"
                             >
+                        </div>
                         </div>
                     </div>
                     
@@ -865,6 +873,31 @@ function formatCardCvv(input) {
     input.value = input.value.replace(/\D/g, '');
 }
 
+// Toggle new-card fields when a saved card is selected
+function handleCardSelectChange() {
+    const select = document.getElementById('savedCardSelect');
+    const newCardFields = document.getElementById('newCardFields');
+    const banner = document.getElementById('savedCardConfirmBanner');
+    const label  = document.getElementById('savedCardConfirmLabel');
+
+    if (select && select.value) {
+        if (newCardFields) newCardFields.style.display = 'none';
+        if (banner)        banner.style.display = 'block';
+        const cardId = parseInt(select.value);
+        const card   = currentUser && currentUser.savedCards
+            ? currentUser.savedCards.find(c => c.id === cardId)
+            : null;
+        if (card && label) {
+            label.textContent = (card.nickname ? card.nickname + ' \u2014 ' : '') +
+                card.cardMasked + ' \u00B7 ' + card.cardholderName +
+                ' \u00B7 Exp ' + card.cardExpiry;
+        }
+    } else {
+        if (newCardFields) newCardFields.style.display = 'block';
+        if (banner)        banner.style.display = 'none';
+    }
+}
+
 // Handle purchase
 async function handlePurchase(event, eventId) {
     event.preventDefault();
@@ -873,24 +906,48 @@ async function handlePurchase(event, eventId) {
     const submitButton = form.querySelector('button[type="submit"]');
     submitButton.disabled = true;
     submitButton.textContent = 'Processing...';
-    
+
+    // Check if a saved card is selected
+    const savedCardSelect = document.getElementById('savedCardSelect');
+    const savedCardId = savedCardSelect ? savedCardSelect.value : '';
+
+    // Validate raw card fields if not using a saved card
+    if (!savedCardId) {
+        const cardNumber     = form.cardNumber     ? form.cardNumber.value.trim()     : '';
+        const cardExpiry     = form.cardExpiry     ? form.cardExpiry.value.trim()     : '';
+        const cardCvv        = form.cardCvv        ? form.cardCvv.value.trim()        : '';
+        const cardholderName = form.cardholderName ? form.cardholderName.value.trim() : '';
+        if (!cardNumber || !cardExpiry || !cardCvv || !cardholderName) {
+            alert('Please enter your payment card details.');
+            submitButton.disabled = false;
+            submitButton.textContent = 'Complete Purchase';
+            return;
+        }
+    }
+
     const purchaseData = {
-        eventId: eventId,
-        quantity: parseInt(form.quantity.value),
-        customerName: form.customerName.value,
-        customerEmail: form.customerEmail.value,
-        cardNumber: form.cardNumber.value,
-        cardExpiry: form.cardExpiry.value,
-        cardCvv: form.cardCvv.value,
-        cardholderName: form.cardholderName.value
+        eventId:       eventId,
+        quantity:      parseInt(form.quantity.value),
+        customerName:  form.customerName.value,
+        customerEmail: form.customerEmail.value
     };
+
+    if (savedCardId) {
+        purchaseData.savedCardId = parseInt(savedCardId);
+    } else {
+        purchaseData.cardNumber     = form.cardNumber.value;
+        purchaseData.cardExpiry     = form.cardExpiry.value;
+        purchaseData.cardCvv        = form.cardCvv.value;
+        purchaseData.cardholderName = form.cardholderName.value;
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
     
     try {
         const response = await fetch('/api/tickets/purchase', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers,
             body: JSON.stringify(purchaseData)
         });
         
@@ -935,7 +992,13 @@ function showConfirmation(purchase) {
             
             <p>Thank you for your purchase!</p>
             
-            <button class="btn btn-primary" onclick="confirmationModal.style.display='none'">Close</button>
+            <div class="confirmation-actions">
+                <a class="btn btn-secondary"
+                   href="/api/tickets/${purchase.id}/pdf"
+                   target="_blank"
+                   download="ticket-${purchase.id}.pdf">&#128229; Download Ticket PDF</a>
+                <button class="btn btn-primary" onclick="confirmationModal.style.display='none'">Close</button>
+            </div>
         </div>
     `;
     
@@ -955,9 +1018,10 @@ function closeAccountModal() {
 }
 
 function switchAccountTab(tab) {
-    ['profile', 'security', 'cards'].forEach(t => {
+    ['profile', 'security', 'cards', 'purchases'].forEach(t => {
         const tabBtn   = document.getElementById('accountTab'   + t.charAt(0).toUpperCase() + t.slice(1));
         const tabPanel = document.getElementById('accountPanel' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (!tabBtn || !tabPanel) return;
         const active   = t === tab;
         tabBtn.classList.toggle('active', active);
         tabPanel.style.display = active ? 'block' : 'none';
@@ -969,6 +1033,7 @@ function switchAccountTab(tab) {
         if (toggle) toggle.checked = currentUser.twoFactorEnabled || false;
     }
     if (tab === 'cards')     loadSavedCards();
+    if (tab === 'purchases') loadPurchaseHistory();
 }
 
 function loadAccountProfile() {
@@ -1246,6 +1311,49 @@ async function deleteCard(cardId) {
     } catch {
         alert('Could not connect to server.');
     }
+}
+
+// ─── Purchase History ──────────────────────────────────────────────────────
+
+async function loadPurchaseHistory() {
+    const listEl = document.getElementById('purchaseHistoryList');
+    if (!listEl) return;
+    listEl.innerHTML = '<p class="form-section-note">Loading...</p>';
+    try {
+        const res  = await fetch('/api/account/purchases', {
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        const data = await res.json();
+        renderPurchaseHistory(data.purchases || []);
+    } catch {
+        listEl.innerHTML = '<p class="account-feedback account-feedback--error">Failed to load purchase history.</p>';
+    }
+}
+
+function renderPurchaseHistory(purchases) {
+    const listEl = document.getElementById('purchaseHistoryList');
+    if (!purchases || purchases.length === 0) {
+        listEl.innerHTML = '<p class="form-section-note purchase-history-empty">No purchases yet. Go grab some tickets!</p>';
+        return;
+    }
+    listEl.innerHTML = purchases.map(p => `
+        <div class="purchase-history-item">
+            <div class="purchase-history-info">
+                <strong class="purchase-history-name">${escapeHtml(p.eventName)}</strong>
+                <span class="purchase-history-meta">
+                    ${p.quantity} ticket${p.quantity !== 1 ? 's' : ''} &bull;
+                    &pound;${p.totalPrice.toFixed(2)} &bull;
+                    ${new Date(p.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+                <span class="purchase-history-ref">Ref: #${p.id} &bull; ${escapeHtml(p.cardMasked)}</span>
+            </div>
+            <a class="btn btn-secondary btn-sm"
+               href="/api/tickets/${p.id}/pdf"
+               target="_blank"
+               download="ticket-${p.id}.pdf"
+               title="Download ticket PDF">&#128229; PDF</a>
+        </div>
+    `).join('');
 }
 
 // ─── Account feedback helpers ──────────────────────────────────────────────

@@ -2,7 +2,8 @@
 
 const express     = require('express');
 const { store, safeUser } = require('../lib/store');
-const { validatePasswordComplexity, isPasswordReused, recordPasswordHistory } = require('../lib/passwordValidator');
+const { validatePasswordComplexity, isPasswordReusedAsync,
+        hashPassword, verifyPassword, recordPasswordHistory } = require('../lib/passwordValidator');
 const { requireAuth } = require('../middleware/requireAuth');
 
 const router = express.Router();
@@ -60,7 +61,7 @@ router.put('/', requireAuth, (req, res) => {
 });
 
 // ─── PUT /api/account/password ───────────────────────────────────────────────
-router.put('/password', requireAuth, (req, res) => {
+router.put('/password', requireAuth, async (req, res) => {
   const user = req.user;
   const { currentPassword, newPassword } = req.body;
 
@@ -68,15 +69,15 @@ router.put('/password', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Current and new password are required.' });
   }
 
-  if (user.password !== currentPassword) {
+  if (!(await verifyPassword(currentPassword, user.password))) {
     return res.status(400).json({ error: 'Current password is incorrect.' });
   }
 
-  if (newPassword === user.password) {
+  if (await verifyPassword(newPassword, user.password)) {
     return res.status(400).json({ error: 'New password must be different from your current password.' });
   }
 
-  if (isPasswordReused(newPassword, user.passwordHistory)) {
+  if (await isPasswordReusedAsync(newPassword, user.passwordHistory)) {
     return res.status(400).json({ error: 'You have used this password recently. Please choose a new one.' });
   }
 
@@ -84,8 +85,16 @@ router.put('/password', requireAuth, (req, res) => {
   if (passwordError) return res.status(400).json({ error: passwordError });
 
   recordPasswordHistory(user);
-  user.password = newPassword;
+  user.password = await hashPassword(newPassword);
   res.json({ success: true });
+});
+
+// ─── GET /api/account/purchases ─────────────────────────────────────────────
+router.get('/purchases', requireAuth, (req, res) => {
+  const purchases = store.purchases
+    .filter(p => p.userId === req.user.id)
+    .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+  res.json({ purchases });
 });
 
 // ─── GET /api/account/cards ──────────────────────────────────────────────────
