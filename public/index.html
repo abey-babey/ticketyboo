@@ -144,11 +144,16 @@
                         <label for="regPassword">Password:</label>
                         <input type="password" id="regPassword" required placeholder="Choose a password" autocomplete="new-password" oninput="updatePasswordChecklist(this.value); updatePasswordMatch()">
                         <ul class="password-checklist" id="passwordChecklist" aria-live="polite">
+                            <li class="pc-mode-label" id="pc-mode-label">Traditional password:</li>
                             <li id="pc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
                             <li id="pc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
                             <li id="pc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
                             <li id="pc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
                             <li id="pc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                            <li class="pc-divider">— or use a passphrase —</li>
+                            <li id="pc-pp-length" class="pc-rule pc-muted"><span class="pc-icon">○</span> 20+ characters total</li>
+                            <li id="pc-pp-upper"  class="pc-rule pc-muted"><span class="pc-icon">○</span> 2+ uppercase letters (one per word)</li>
+                            <li id="pc-pp-number" class="pc-rule pc-muted"><span class="pc-icon">○</span> 1+ number</li>
                         </ul>
                     </div>
                     <div class="form-group">
@@ -257,11 +262,16 @@
                             <input type="password" id="resetNewPw" required placeholder="New password"
                                    autocomplete="new-password" oninput="updateResetPasswordChecklist(this.value); updateResetPasswordMatch()">
                             <ul class="password-checklist" id="resetPasswordChecklist" aria-live="polite">
+                                <li class="pc-mode-label" id="rpc-mode-label">Traditional password:</li>
                                 <li id="rpc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
                                 <li id="rpc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
                                 <li id="rpc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
                                 <li id="rpc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
                                 <li id="rpc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                                <li class="pc-divider">— or use a passphrase —</li>
+                                <li id="rpc-pp-length" class="pc-rule pc-muted"><span class="pc-icon">○</span> 20+ characters total</li>
+                                <li id="rpc-pp-upper"  class="pc-rule pc-muted"><span class="pc-icon">○</span> 2+ uppercase letters (one per word)</li>
+                                <li id="rpc-pp-number" class="pc-rule pc-muted"><span class="pc-icon">○</span> 1+ number</li>
                             </ul>
                         </div>
                         <div class="form-group">
@@ -486,11 +496,16 @@
                         <input type="password" id="acctNewPw" required autocomplete="new-password"
                                oninput="updateAccountPasswordChecklist(this.value); updateAccountPasswordMatch()">
                         <ul class="password-checklist" id="acctPasswordChecklist" aria-live="polite">
+                            <li class="pc-mode-label" id="apc-mode-label">Traditional password:</li>
                             <li id="apc-length"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 8 characters</li>
                             <li id="apc-upper"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 uppercase letter (A–Z)</li>
                             <li id="apc-lower"   class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 lowercase letter (a–z)</li>
                             <li id="apc-number"  class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 number (0–9)</li>
                             <li id="apc-special" class="pc-rule pc-fail"><span class="pc-icon">✗</span> At least 1 special character (!&nbsp;@&nbsp;#&nbsp;$&nbsp;%&nbsp;^&nbsp;&amp;&nbsp;*)</li>
+                            <li class="pc-divider">— or use a passphrase —</li>
+                            <li id="apc-pp-length" class="pc-rule pc-muted"><span class="pc-icon">○</span> 20+ characters total</li>
+                            <li id="apc-pp-upper"  class="pc-rule pc-muted"><span class="pc-icon">○</span> 2+ uppercase letters (one per word)</li>
+                            <li id="apc-pp-number" class="pc-rule pc-muted"><span class="pc-icon">○</span> 1+ number</li>
                         </ul>
                     </div>
                     <div class="form-group">

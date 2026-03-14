@@ -215,7 +215,14 @@ function updatePasswordMatch() {
     msg.textContent  = matched ? '✓ Passwords match' : '✗ Passwords do not match';
 }
 
-// Returns an object with each rule's result { length, upper, lower, number, special }
+// ─── Password / Passphrase validation ────────────────────────────────────────
+// Mirrors lib/passwordValidator.js — two valid credential styles:
+//   Traditional password : 8+ chars, upper, lower, digit, special char
+//   Passphrase           : 20+ chars, 2+ uppercase letters, 1+ digit
+
+const PASSPHRASE_MIN = 20;
+
+// Audit object for the traditional password rules
 function validatePassword(password) {
     return {
         length:  password.length >= 8,
@@ -226,25 +233,91 @@ function validatePassword(password) {
     };
 }
 
-// Updates the live checklist UI beneath the password field
-function updatePasswordChecklist(value) {
-    const rules = validatePassword(value);
-    const map = {
-        'pc-length':  rules.length,
-        'pc-upper':   rules.upper,
-        'pc-lower':   rules.lower,
-        'pc-number':  rules.number,
-        'pc-special': rules.special
+// Audit object for the passphrase rules
+function validatePassphrase(password) {
+    const upperCount = (password.match(/[A-Z]/g) || []).length;
+    return {
+        length: password.length >= PASSPHRASE_MIN,
+        upper:  upperCount >= 2,
+        number: /[0-9]/.test(password)
     };
-    for (const [id, passed] of Object.entries(map)) {
+}
+
+// Returns true if either credential style passes — used in submit guards
+function isValidCredential(password) {
+    if (Object.values(validatePassword(password)).every(Boolean)) return true;
+    return Object.values(validatePassphrase(password)).every(Boolean);
+}
+
+/**
+ * Updates a dual-mode password checklist.
+ * @param {string} value   Current input value
+ * @param {string} prefix  ID prefix: 'pc' | 'apc' | 'rpc'
+ */
+function updateChecklistForPrefix(value, prefix) {
+    const isPassphrase = value.length >= PASSPHRASE_MIN;
+    const pwRules = validatePassword(value);
+    const ppRules = validatePassphrase(value);
+
+    // Traditional items
+    const pwMap = {
+        [`${prefix}-length`]:  pwRules.length,
+        [`${prefix}-upper`]:   pwRules.upper,
+        [`${prefix}-lower`]:   pwRules.lower,
+        [`${prefix}-number`]:  pwRules.number,
+        [`${prefix}-special`]: pwRules.special
+    };
+    for (const [id, passed] of Object.entries(pwMap)) {
         const el = document.getElementById(id);
         if (!el) continue;
         const icon = el.querySelector('.pc-icon');
-        el.classList.toggle('pc-pass', passed);
-        el.classList.toggle('pc-fail', !passed);
-        icon.textContent = passed ? '✓' : '✗';
+        if (isPassphrase) {
+            // Fade traditional section — neither pass nor fail
+            el.classList.remove('pc-pass', 'pc-fail');
+            el.classList.add('pc-muted');
+            icon.textContent = '○';
+        } else {
+            el.classList.remove('pc-muted');
+            el.classList.toggle('pc-pass', passed);
+            el.classList.toggle('pc-fail', !passed);
+            icon.textContent = passed ? '✓' : '✗';
+        }
+    }
+
+    // Mode label
+    const labelEl = document.getElementById(`${prefix}-mode-label`);
+    if (labelEl) {
+        labelEl.textContent = isPassphrase ? 'Passphrase (active):' : 'Traditional password:';
+        labelEl.classList.toggle('pc-mode-active', true);
+    }
+
+    // Passphrase items
+    const ppMap = {
+        [`${prefix}-pp-length`]: ppRules.length,
+        [`${prefix}-pp-upper`]:  ppRules.upper,
+        [`${prefix}-pp-number`]: ppRules.number
+    };
+    for (const [id, passed] of Object.entries(ppMap)) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const icon = el.querySelector('.pc-icon');
+        if (!isPassphrase) {
+            el.classList.remove('pc-pass', 'pc-fail');
+            el.classList.add('pc-muted');
+            icon.textContent = '○';
+        } else {
+            el.classList.remove('pc-muted');
+            el.classList.toggle('pc-pass', passed);
+            el.classList.toggle('pc-fail', !passed);
+            icon.textContent = passed ? '✓' : '✗';
+        }
     }
 }
+
+// Public wrappers — called from HTML oninput handlers
+function updatePasswordChecklist(value)       { updateChecklistForPrefix(value, 'pc');  }
+function updateResetPasswordChecklist(value)   { updateChecklistForPrefix(value, 'rpc'); }
+function updateAccountPasswordChecklist(value) { updateChecklistForPrefix(value, 'apc'); }
 
 async function handleLogin(e) {
     e.preventDefault();
@@ -324,10 +397,9 @@ async function handleRegister(e) {
 
     const passwordConfirm = document.getElementById('regPasswordConfirm').value;
 
-    // Client-side password complexity guard
-    const pwRules = validatePassword(password);
-    if (!Object.values(pwRules).every(Boolean)) {
-        errorEl.textContent = 'Please ensure your password meets all the requirements shown below the password field.';
+    // Client-side password complexity guard (traditional OR passphrase)
+    if (!isValidCredential(password)) {
+        errorEl.textContent = 'Please ensure your password meets the requirements shown below (traditional password or passphrase).';
         errorEl.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Create Account';
@@ -420,9 +492,8 @@ async function handleResetConfirm(e) {
     const newPw    = document.getElementById('resetNewPw').value;
     const confirmPw = document.getElementById('resetConfirmPw').value;
 
-    const pwRules = validatePassword(newPw);
-    if (!Object.values(pwRules).every(Boolean)) {
-        errorEl.textContent = 'Password does not meet complexity requirements.';
+    if (!isValidCredential(newPw)) {
+        errorEl.textContent = 'Password does not meet the requirements (traditional password or 20+ character passphrase).';
         errorEl.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Reset Password';
@@ -495,26 +566,6 @@ async function handleTwoFaVerify(e) {
     } finally {
         btn.disabled = false;
         btn.textContent = 'Verify Code';
-    }
-}
-
-// Reset-password form helpers (mirrors registration checklist but targets rpc-* IDs)
-function updateResetPasswordChecklist(value) {
-    const rules = validatePassword(value);
-    const map = {
-        'rpc-length':  rules.length,
-        'rpc-upper':   rules.upper,
-        'rpc-lower':   rules.lower,
-        'rpc-number':  rules.number,
-        'rpc-special': rules.special
-    };
-    for (const [id, passed] of Object.entries(map)) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        const icon = el.querySelector('.pc-icon');
-        el.classList.toggle('pc-pass', passed);
-        el.classList.toggle('pc-fail', !passed);
-        icon.textContent = passed ? '✓' : '✗';
     }
 }
 
@@ -1028,9 +1079,8 @@ async function savePassword(e) {
     btn.textContent = 'Saving...';
     msgEl.style.display = 'none';
 
-    const pwRules = validatePassword(newPw);
-    if (!Object.values(pwRules).every(Boolean)) {
-        showAccountMsg('acctPasswordMsg', 'New password does not meet complexity requirements.', 'error');
+    if (!isValidCredential(newPw)) {
+        showAccountMsg('acctPasswordMsg', 'New password does not meet requirements (traditional password or 20+ character passphrase).', 'error');
         btn.disabled = false;
         btn.textContent = 'Change Password';
         return;
@@ -1061,25 +1111,6 @@ async function savePassword(e) {
     } finally {
         btn.disabled = false;
         btn.textContent = 'Change Password';
-    }
-}
-
-function updateAccountPasswordChecklist(value) {
-    const rules = validatePassword(value);
-    const map = {
-        'apc-length':  rules.length,
-        'apc-upper':   rules.upper,
-        'apc-lower':   rules.lower,
-        'apc-number':  rules.number,
-        'apc-special': rules.special
-    };
-    for (const [id, passed] of Object.entries(map)) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        const icon = el.querySelector('.pc-icon');
-        el.classList.toggle('pc-pass', passed);
-        el.classList.toggle('pc-fail', !passed);
-        icon.textContent = passed ? '✓' : '✗';
     }
 }
 

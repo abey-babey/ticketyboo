@@ -775,6 +775,32 @@ footer {
     color: #27ae60;
 }
 
+/* Muted state — item belongs to the inactive credential mode */
+.pc-muted {
+    color: #bbb;
+    font-style: italic;
+}
+
+/* Divider between traditional and passphrase sections */
+.pc-divider {
+    font-size: 0.78rem;
+    color: #999;
+    text-align: center;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0;
+    border-top: 1px dashed #dde;
+    margin-top: 0.15rem;
+}
+
+/* Mode label — "Traditional password:" / "Passphrase (active):" */
+.pc-mode-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #667eea;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
 /* Confirm-password match message */
 .password-match-msg {
     margin-top: 0.4rem;
