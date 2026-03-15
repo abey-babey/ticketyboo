@@ -178,11 +178,85 @@ CREATE TABLE support_messages (
 4. Replace `lib/store.js` (in-memory arrays) with thin DAO helpers in `lib/db.js` exposing `getUser`, `createUser`, `getEvents`, etc.
 5. Update all route files (`auth.js`, `account.js`, `events.js`, `tickets.js`) to use the DAO helpers — route logic itself should not change significantly.
 6. Seed the events table on first run using the existing event data (expanded in Phase E).
-7. Seed a single default admin account on first run if no admin exists (credentials printed to the console on first boot, never hard-coded in source).
+7. Seed admin accounts using an **upsert** strategy — on every server start, ensure the two seeded admin users exist with the correct role and permissions. Fixed known passwords are documented in the README. See Phase B.5 for the full seeding and permissions design.
 
 ### B.4 Files affected
 
 `package.json`, `lib/db.js` (new), `lib/store.js` (retired), `server.js`, `routes/auth.js`, `routes/account.js`, `routes/events.js`, `routes/tickets.js`
+
+---
+
+## Phase B.5 — Granular Permissions System & Seeded Accounts
+
+**Goal:** Replace the single `role` column with a proper permissions table, seed two fixed admin users on every startup (upsert), and add permission-aware middleware factories.
+
+### B.5.1 Why granular permissions
+
+A bare `role` string works for a two-tier guest/admin split but quickly becomes limiting:
+- Some administrators should have read-only access (e.g. a support analyst who can view customers but not delete them).
+- Future roles (e.g. event manager, support agent) need different permission subsets.
+- Tests want to verify exact permission boundaries, not just broadly "is admin or not".
+
+The `role` column is kept on `users` as a coarse category label (`'user'` or `'admin'`). Fine-grained access is driven by the `user_permissions` table.
+
+### B.5.2 Schema additions
+
+```sql
+-- Granular permission grants (one row per user-permission pair)
+CREATE TABLE IF NOT EXISTS user_permissions (
+  userId     INTEGER NOT NULL,
+  permission TEXT    NOT NULL,
+  grantedAt  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (userId, permission),
+  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+Permission names use a colon-separated namespace: `admin:users:read`, `admin:users:write`, `admin:users:delete`, `admin:events:write`, `admin:purchases:read`, `admin:logs:read`, `admin:support:write`.
+
+### B.5.3 Seeded admin accounts
+
+Two admin users are upserted on every server start (INSERT OR REPLACE), ensuring they always exist with the correct password hash, role, and permissions regardless of whether the database is fresh or pre-populated.
+
+| Username | Password | Role | Permissions granted |
+| --- | --- | --- | --- |
+| `admin` | `AdminPass1!` | `admin` | All `admin:*` permissions |
+| `admin.readonly` | `AdminRead1!` | `admin` | `admin:users:read`, `admin:purchases:read`, `admin:logs:read` |
+
+Credentials are **fixed and documented in the README** — they are not random, and are not printed to the console. This makes it straightforward for test engineers to write scripts without any first-boot bootstrap step.
+
+### B.5.4 DAO additions (`lib/db.js`)
+
+| Function | Signature | Description |
+| --- | --- | --- |
+| `getUserPermissions` | `(userId) → string[]` | Returns all permission strings for the given user |
+| `grantPermission` | `(userId, permission) → void` | Inserts a row into `user_permissions` (idempotent) |
+| `revokePermission` | `(userId, permission) → void` | Deletes the row if present |
+| `hasPermission` | `(userId, permission) → boolean` | Single-row existence check |
+
+`getUserById` is updated to also attach a `permissions` array to the returned user object (same pattern as `savedCards`), so that `safeUser()` can include it without an extra query at the call site.
+
+`safeUser()` is updated to expose `role` and `permissions: string[]` to API consumers.
+
+`insertUser` prepared statement is updated to accept an explicit `role` value (still defaults to `'user'` for normal registrations).
+
+### B.5.5 Middleware additions (`middleware/requireAuth.js`)
+
+```js
+// Requires the user to hold a specific permission string.
+// Must be used after requireAuth.
+function requirePermission(permission) { ... }
+
+// Requires the user's role column to equal the given value.
+// Useful for broad checks (e.g. requireRole('admin')).
+function requireRole(role) { ... }
+```
+
+Both factories return a standard Express middleware `(req, res, next)` and respond with `403 Forbidden` on failure.
+
+### B.5.6 Files affected
+
+`lib/db.js` (schema, DAOs, upsert seed), `middleware/requireAuth.js` (new exports: `requirePermission`, `requireRole`), `README.md` (seeded credentials section)
 
 ---
 
@@ -192,8 +266,9 @@ CREATE TABLE support_messages (
 
 ### C.1 Access control
 
-- `middleware/requireAdmin.js` — extends `requireAuth` by additionally checking `req.user.role === 'admin'`. Returns `403 Forbidden` for authenticated non-admins.
-- All `/api/admin/*` routes are protected by this middleware.
+- `requireRole('admin')` (from `middleware/requireAuth.js`, Phase B.5) guards the admin panel at the top level — any authenticated user without `role = 'admin'` gets a `403 Forbidden`.
+- Individual admin endpoints may additionally require a specific permission via `requirePermission('admin:users:delete')` etc., allowing read-only admin accounts to access dashboards but not destructive operations.
+- All `/api/admin/*` routes apply `requireAuth` + `requireRole('admin')` as a baseline and add sub-permission checks per endpoint.
 - UI: a separate `/admin` HTML page served from `public/admin.html`. The page performs a `GET /api/auth/session` check on load and redirects to the main site if the user is not an admin.
 
 ### C.2 Dashboard — overview widgets
@@ -524,8 +599,8 @@ G (extras)  →  pick opportunistically alongside D, E, F
 | --- | --- | --- |
 | `docs/openapi.yaml` | A | OpenAPI 3.0.3 specification — all current endpoints |
 | `lib/db.js` | B | SQLite connection, schema migration, DAO helpers |
-| `lib/seed.js` | B+E | First-run seed data (events, default admin) |
-| `middleware/requireAdmin.js` | C | Admin-role guard middleware |
+| `lib/seed.js` | B+E | First-run seed data (events); admin upsert runs inside `lib/db.js` on every start |
+| `middleware/requireAuth.js` | B.5 | Extended with `requirePermission()` and `requireRole()` factory exports |
 | `routes/admin.js` | C | `/api/admin/*` endpoints |
 | `routes/support.js` | D | `/api/support/*` endpoints |
 | `public/admin.html` | C | Admin panel SPA shell |
@@ -538,7 +613,7 @@ G (extras)  →  pick opportunistically alongside D, E, F
 
 - **Database file location** — `ticketyboo.db` in the project root. Add to `.gitignore` so test databases are not committed.
 - **Migrations** — use `CREATE TABLE IF NOT EXISTS` for simplicity; no migration framework needed at this scale.
-- **Admin seed account** — username `admin`, random password printed to the console on first boot only. The password is then stored as a bcrypt hash; the plain-text version is never persisted.
+- **Seeded admin accounts** — two fixed admin users (`admin` / `AdminPass1!` and `admin.readonly` / `AdminRead1!`). Upserted on every server start so test suites can rely on them without any bootstrap step. Credentials are documented in the README; the plain-text passwords are purposely fixed and public for this training app.
 - **No breaking changes to existing API contracts** — new query params are additive; existing clients continue to work.
 - **Single-file front-end policy** — `public/app.js` remains consolidated for the customer-facing site. The admin panel gets its own `public/admin.js` to keep the concerns separate.
 - **Playwright testing surface** — every new feature (admin login, support form, location filter, promo codes) is an additional automation scenario. This is a training app, so richness of testable flows is a feature in itself.
