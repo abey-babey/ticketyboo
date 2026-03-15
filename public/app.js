@@ -1,9 +1,30 @@
 // State
 let currentFilter = 'all';
+let currentCity   = null;   // Phase E: city quick-filter from modal link
 let events = [];
 let currentUser = null;
 let authToken = null;
 let pendingChallengeId = null;
+
+// Event type display labels (Phase E)
+const EVENT_TYPE_LABELS = {
+  concert:    'Concert',
+  film:       'Film Screening',
+  comedy:     'Comedy',
+  festival:   'Festival',
+  club_night: 'Club Night',
+  theatre:    'Theatre',
+  comicon:    'Comic Con',
+  sport:      'Sport',
+  family:     'Family',
+  exhibition: 'Exhibition',
+  food_drink: 'Food & Drink',
+  wellness:   'Wellness'
+};
+
+function getTypeLabel(type) {
+  return EVENT_TYPE_LABELS[type] || type;
+}
 
 // DOM Elements
 const eventsList = document.getElementById('eventsList');
@@ -659,25 +680,53 @@ function displayEvents() {
     let filteredEvents = events;
     
     if (currentFilter !== 'all') {
-        filteredEvents = events.filter(event => event.type === currentFilter);
+        filteredEvents = filteredEvents.filter(event => event.type === currentFilter);
+    }
+
+    if (currentCity) {
+        filteredEvents = filteredEvents.filter(event =>
+            event.city && event.city.toLowerCase() === currentCity.toLowerCase());
     }
     
     if (filteredEvents.length === 0) {
-        eventsList.innerHTML = '<div class="loading">No events found.</div>';
+        const clearMsg = currentCity
+            ? `No events found in <strong>${currentCity}</strong>. <a href="#" onclick="clearCityFilter(); return false;">Show all cities</a>`
+            : 'No events found.';
+        eventsList.innerHTML = `<div class="loading">${clearMsg}</div>`;
         return;
     }
+
+    // City filter notice banner
+    const cityBanner = currentCity
+        ? `<div class="city-filter-banner">Showing events in <strong>${currentCity}</strong> &mdash; <a href="#" onclick="clearCityFilter(); return false;">Clear</a></div>`
+        : '';
     
-    eventsList.innerHTML = filteredEvents.map(event => `
+    eventsList.innerHTML = cityBanner + filteredEvents.map(event => `
         <div class="event-card" onclick="showEventDetails(${event.id})">
-            <span class="event-type ${event.type}">${event.type}</span>
+            <span class="event-type ${event.type}">${getTypeLabel(event.type)}</span>
             <h3>${event.name}</h3>
             <p class="event-artist">${event.artist}</p>
             <p class="event-details">📍 ${event.venue}</p>
+            ${event.city ? `<p class="event-location">📌 ${event.city}${event.country && event.country !== 'UK' ? ', ' + event.country : ', UK'}</p>` : ''}
             <p class="event-details">📅 ${formatDate(event.date)} at ${event.time}</p>
             <p class="event-price">£${event.price.toFixed(2)}</p>
             <p class="event-availability">${event.availableTickets} tickets available</p>
         </div>
     `).join('');
+}
+
+function clearCityFilter() {
+    currentCity = null;
+    displayEvents();
+}
+
+function filterByCity(city) {
+    currentCity = city;
+    // Close the event modal and show filtered results
+    const eventModal = document.getElementById('eventModal');
+    if (eventModal) eventModal.style.display = 'none';
+    displayEvents();
+    window.scrollTo({ top: document.getElementById('eventsList').offsetTop - 80, behavior: 'smooth' });
 }
 
 // Format date
@@ -700,13 +749,14 @@ async function showEventDetails(eventId) {
         const eventDetails = document.getElementById('eventDetails');
         eventDetails.innerHTML = `
             <div class="modal-event-header">
-                <span class="event-type ${event.type}">${event.type}</span>
+                <span class="event-type ${event.type}">${getTypeLabel(event.type)}</span>
                 <h2>${event.name}</h2>
                 <p class="event-artist">${event.artist}</p>
             </div>
             
             <div class="event-info">
                 <p><strong>📍 Venue:</strong> ${event.venue}</p>
+                ${event.city ? `<p><strong>📌 Location:</strong> ${event.city}${event.country && event.country !== 'UK' ? ', ' + event.country : ', UK'} &mdash; <a href="#" class="more-events-link" onclick="filterByCity('${event.city.replace(/'/g, "\\'")}'); return false;">More events in ${event.city}</a></p>` : ''}
                 <p><strong>📅 Date:</strong> ${formatDate(event.date)}</p>
                 <p><strong>🕐 Time:</strong> ${event.time}</p>
                 <p><strong>💵 Price:</strong> £${event.price.toFixed(2)} per ticket</p>
