@@ -9,12 +9,14 @@ A Node.js application for browsing and purchasing event tickets. Designed as a r
 ## Features
 
 ### Browsing & purchasing
+
 - Browse events without signing in — no login wall on the homepage
 - Filter events by type (concert, film, comedy, festival, and more)
 - Purchase tickets as a guest (name + email at checkout) or as a logged-in customer
 - Downloadable PDF ticket with QR code for each purchase
 
 ### Authentication
+
 - Register with a full customer profile (name, address, marketing preferences)
 - Login with username and password
 - Two-factor authentication (email OTP via Ethereal) — opt-in per account
@@ -22,11 +24,13 @@ A Node.js application for browsing and purchasing event tickets. Designed as a r
 - Rate limiting: 5 failed login attempts triggers a 15-minute lockout
 
 ### Password security
+
 - Complexity rules enforced both client-side (live checklist) and server-side:
   - Minimum 8 characters
   - At least one uppercase letter, one lowercase letter, one digit, one special character (`! @ # $ % ^ & *`)
 
 ### My Account
+
 - **Profile tab** — view and edit name, address, email, phone
 - **Security tab** — change username, change password, toggle 2FA
 - **Payment Cards tab** — save cards (last 4 digits and expiry only; full number never stored), remove cards

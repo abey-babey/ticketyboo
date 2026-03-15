@@ -5,6 +5,12 @@ const db      = require('../lib/db');
 
 const router = express.Router();
 
+// ─── GET /api/events/cities ──────────────────────────────────────────────────
+// Must be defined before /:id to avoid 'cities' being treated as an id param.
+router.get('/cities', (_req, res) => {
+  res.json(db.getEventCities());
+});
+
 // ─── GET /api/events ─────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const { type } = req.query;

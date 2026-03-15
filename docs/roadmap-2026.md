@@ -193,6 +193,7 @@ CREATE TABLE support_messages (
 ### B.5.1 Why granular permissions
 
 A bare `role` string works for a two-tier guest/admin split but quickly becomes limiting:
+
 - Some administrators should have read-only access (e.g. a support analyst who can view customers but not delete them).
 - Future roles (e.g. event manager, support agent) need different permission subsets.
 - Tests want to verify exact permission boundaries, not just broadly "is admin or not".
@@ -413,7 +414,7 @@ On submit: `POST /api/support/tickets` — returns the new ticket ID and a confi
 
 ---
 
-## Phase E — Expanded Event Catalogue
+## Phase E — Expanded Event Catalogue ✅
 
 **Goal:** Broaden the range of events well beyond the original three types to make the application more realistic and interesting to test against.
 
