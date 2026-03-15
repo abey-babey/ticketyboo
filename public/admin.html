@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ticketyboo — Admin</title>
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">🎟</span>
+      <span class="brand-name">Ticketyboo</span>
+      <span class="brand-tag">Admin</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-section="dashboard" href="#dashboard">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <a class="nav-item" data-section="logs" href="#logs">
+        <span class="nav-icon">📋</span> Application Logs
+      </a>
+      <a class="nav-item" data-section="customers" href="#customers">
+        <span class="nav-icon">👥</span> Customers
+      </a>
+      <a class="nav-item" data-section="purchases" href="#purchases">
+        <span class="nav-icon">🛒</span> Purchases
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span id="sidebar-username" class="sidebar-user"></span>
+      <a href="/" class="sidebar-back">← Back to site</a>
+      <button id="btn-logout" class="btn-sidebar-logout">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- ── Main content ─────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- ── Dashboard ──────────────────────────────────────────────────── -->
+    <section class="section" id="section-dashboard">
+      <h1 class="section-title">Dashboard</h1>
+
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card" id="stat-total-users">
+          <div class="stat-label">Registered customers</div>
+          <div class="stat-value" id="val-total-users">—</div>
+        </div>
+        <div class="stat-card" id="stat-new-users">
+          <div class="stat-label">New this week</div>
+          <div class="stat-value" id="val-new-users">—</div>
+        </div>
+        <div class="stat-card" id="stat-total-purchases">
+          <div class="stat-label">Total purchases</div>
+          <div class="stat-value" id="val-total-purchases">—</div>
+        </div>
+        <div class="stat-card" id="stat-revenue">
+          <div class="stat-label">Revenue (last 30 days)</div>
+          <div class="stat-value" id="val-revenue">—</div>
+        </div>
+      </div>
+
+      <h2 class="subsection-title">Recent warnings &amp; errors</h2>
+      <div id="recent-warnings" class="log-snippet"></div>
+    </section>
+
+    <!-- ── Logs ───────────────────────────────────────────────────────── -->
+    <section class="section hidden" id="section-logs">
+      <div class="section-header">
+        <h1 class="section-title">Application Logs</h1>
+        <div class="section-actions">
+          <label class="toggle-label">
+            <input type="checkbox" id="logs-autorefresh" />
+            Auto-refresh (10 s)
+          </label>
+          <button class="btn btn-secondary" id="btn-export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="logs-q"        class="filter-input" placeholder="Search message…" />
+        <select id="logs-level"    class="filter-select">
+          <option value="">All levels</option>
+          <option value="info">Info</option>
+          <option value="warn">Warn</option>
+          <option value="error">Error</option>
+          <option value="audit">Audit</option>
+        </select>
+        <select id="logs-category" class="filter-select">
+          <option value="">All categories</option>
+          <option value="auth">Auth</option>
+          <option value="purchase">Purchase</option>
+          <option value="account">Account</option>
+          <option value="admin">Admin</option>
+          <option value="support">Support</option>
+          <option value="system">System</option>
+        </select>
+        <input type="date" id="logs-from" class="filter-input" />
+        <input type="date" id="logs-to"   class="filter-input" />
+        <button class="btn btn-primary" id="btn-logs-search">Search</button>
+        <button class="btn btn-ghost"   id="btn-logs-reset">Reset</button>
+      </div>
+
+      <div id="logs-result-count" class="result-count"></div>
+
+      <table class="data-table" id="logs-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Level</th>
+            <th>Category</th>
+            <th>Message</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody id="logs-tbody"></tbody>
+      </table>
+      <div id="logs-pagination" class="pagination"></div>
+    </section>
+
+    <!-- ── Customers ──────────────────────────────────────────────────── -->
+    <section class="section hidden" id="section-customers">
+      <h1 class="section-title">Customers</h1>
+
+      <div class="filter-bar">
+        <input type="text" id="cust-q" class="filter-input" placeholder="Search name, email, username…" />
+        <button class="btn btn-primary" id="btn-cust-search">Search</button>
+        <button class="btn btn-ghost"   id="btn-cust-reset">Reset</button>
+      </div>
+
+      <div id="cust-result-count" class="result-count"></div>
+
+      <table class="data-table" id="cust-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Joined</th>
+            <th>Purchases</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="cust-tbody"></tbody>
+      </table>
+      <div id="cust-pagination" class="pagination"></div>
+
+      <!-- Customer detail panel -->
+      <div class="detail-overlay hidden" id="cust-detail-overlay">
+        <div class="detail-panel">
+          <button class="detail-close" id="cust-detail-close">&times;</button>
+          <h2 id="cust-detail-name">Customer detail</h2>
+          <div id="cust-detail-body" class="detail-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Purchases ──────────────────────────────────────────────────── -->
+    <section class="section hidden" id="section-purchases">
+      <h1 class="section-title">Purchases</h1>
+
+      <div class="filter-bar">
+        <input type="text" id="purch-q"    class="filter-input" placeholder="Search name, email, event…" />
+        <input type="date" id="purch-from" class="filter-input" />
+        <input type="date" id="purch-to"   class="filter-input" />
+        <button class="btn btn-primary" id="btn-purch-search">Search</button>
+        <button class="btn btn-ghost"   id="btn-purch-reset">Reset</button>
+      </div>
+
+      <div id="purch-result-count" class="result-count"></div>
+
+      <table class="data-table" id="purch-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Event</th>
+            <th>Qty</th>
+            <th>Total</th>
+            <th>Card</th>
+          </tr>
+        </thead>
+        <tbody id="purch-tbody"></tbody>
+      </table>
+      <div id="purch-pagination" class="pagination"></div>
+    </section>
+
+  </main>
+
+  <!-- ── Toast notification ─────────────────────────────────────────────── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

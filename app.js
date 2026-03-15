@@ -10,6 +10,7 @@ const authRoutes    = require('./routes/auth');
 const accountRoutes = require('./routes/account');
 const eventRoutes   = require('./routes/events');
 const ticketRoutes  = require('./routes/tickets');
+const adminRoutes   = require('./routes/admin');
 
 const app = express();
 
@@ -23,6 +24,15 @@ app.use('/api/auth',    authRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/events',  eventRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/admin',   adminRoutes);
+
+// ─── Admin panel ──────────────────────────────────────────────────────────────
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+app.get('/admin.html', (req, res) => {
+  res.redirect('/admin');
+});
 
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
