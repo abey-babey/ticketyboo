@@ -382,6 +382,7 @@
                 <button class="account-tab" id="accountTabSecurity" onclick="switchAccountTab('security')">Security</button>
                 <button class="account-tab" id="accountTabCards" onclick="switchAccountTab('cards')">Payment Cards</button>
                 <button class="account-tab" id="accountTabPurchases" onclick="switchAccountTab('purchases')">Purchase History</button>
+                <button class="account-tab" id="accountTabSupport" onclick="switchAccountTab('support')">Support History</button>
             </div>
 
             <!-- Profile Panel -->
@@ -558,14 +559,98 @@
                 <p class="form-section-note">Your confirmed ticket purchases, most recent first.</p>
                 <div id="purchaseHistoryList" class="purchase-history-list"></div>
             </div>
+
+            <!-- Support History Panel -->
+            <div id="accountPanelSupport" class="account-panel">
+                <p class="form-section-note">Your support requests. <button class="btn btn-sm btn-primary" onclick="openSupportModal()">Raise a new request</button></p>
+                <div id="supportHistoryList" class="support-history-list"></div>
+            </div>
         </div>
     </div>
 
     <footer>
         <div class="container">
-            <p>&copy; 2026 Ticketyboo. A test automation learning application.</p>
+            <p>&copy; 2026 Ticketyboo. A test automation learning application. &nbsp;|&nbsp; <a href="#" onclick="openSupportModal(); return false;">Get Help</a></p>
         </div>
     </footer>
+
+    <!-- ── Support Modal ────────────────────────────────────────────────────── -->
+    <div id="supportModal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="supportModalTitle">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="supportModalTitle">Get Help</h2>
+                <button class="modal-close" onclick="closeSupportModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="supportForm" onsubmit="submitSupportRequest(event)">
+                    <div class="form-group">
+                        <label for="supportSubject">Subject <span class="required">*</span></label>
+                        <select id="supportSubject" required>
+                            <option value="">Select a subject…</option>
+                            <option>Booking &amp; Tickets</option>
+                            <option>Payment &amp; Refunds</option>
+                            <option>Account &amp; Login</option>
+                            <option>Event Information</option>
+                            <option>Technical Issue</option>
+                            <option>Accessibility Request</option>
+                            <option>Complaint</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="supportGuestNameGroup">
+                        <label for="supportGuestName">Your name <span class="required">*</span></label>
+                        <input type="text" id="supportGuestName" placeholder="Full name" />
+                    </div>
+                    <div class="form-group" id="supportGuestEmailGroup">
+                        <label for="supportGuestEmail">Your email <span class="required">*</span></label>
+                        <input type="email" id="supportGuestEmail" placeholder="you@example.com" />
+                    </div>
+                    <div class="form-group">
+                        <label for="supportMessage">Message <span class="required">*</span> <span class="field-hint">(min 20 characters)</span></label>
+                        <textarea id="supportMessage" rows="5" placeholder="Please describe your issue in detail…" required minlength="20"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="supportBookingRef">Booking reference <span class="field-hint">(optional)</span></label>
+                        <input type="text" id="supportBookingRef" placeholder="e.g. 42" />
+                    </div>
+                    <div id="supportFormMsg" class="account-feedback"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeSupportModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="supportSubmitBtn">Send Request</button>
+                    </div>
+                </form>
+                <!-- Success state -->
+                <div id="supportSuccessState" style="display:none;text-align:center;padding:2rem 0">
+                    <p style="font-size:2rem">✅</p>
+                    <p><strong>Request received!</strong></p>
+                    <p id="supportSuccessMsg"></p>
+                    <button class="btn btn-primary" onclick="closeSupportModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Support Thread Modal ──────────────────────────────────────────────── -->
+    <div id="supportThreadModal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="supportThreadTitle">
+        <div class="modal-container modal-container--wide">
+            <div class="modal-header">
+                <h2 id="supportThreadTitle">Support Thread</h2>
+                <button class="modal-close" onclick="closeSupportThread()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="supportThreadMeta" class="support-thread-meta"></div>
+                <div id="supportThreadMessages" class="support-thread-messages"></div>
+                <form id="supportReplyForm" onsubmit="submitSupportReply(event)" style="margin-top:1rem">
+                    <div class="form-group">
+                        <label for="supportReplyBody">Add a reply</label>
+                        <textarea id="supportReplyBody" rows="3" placeholder="Type your message…"></textarea>
+                    </div>
+                    <div id="supportReplyMsg" class="account-feedback"></div>
+                    <button type="submit" class="btn btn-primary" id="supportReplyBtn">Send Reply</button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- Cookie Consent Banner -->
     <div id="cookieBanner" class="cookie-banner" role="region" aria-label="Cookie consent" data-testid="cookie-banner">

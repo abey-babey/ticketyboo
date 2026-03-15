@@ -159,5 +159,79 @@ router.get('/purchases/:id', requirePermission('admin:purchases:read'), (req, re
   if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
   res.json(purchase);
 });
+// ─── GET /api/admin/support ─────────────────────────────────────────────────────────
+router.get('/support', requirePermission('admin:support:write'), (req, res) => {
+  try {
+    const { status, priority, q, page = 1, limit = 20 } = req.query;
+    res.json(db.getAdminSupportTickets({ status, priority, q, page, limit: Math.min(Number(limit), 100) }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
+// ─── PUT /api/admin/support/:id ───────────────────────────────────────────────────────
+router.put('/support/:id', requirePermission('admin:support:write'), (req, res) => {
+  try {
+    const id     = Number(req.params.id);
+    const ticket = db.getSupportTicketDetail(id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+    const { status, priority } = req.body;
+    const updated = db.updateSupportTicket(id, { status, priority });
+
+    db.writeLog('audit', 'support',
+      `Admin ${req.user.username} updated ticket #${id}: status=${status || '-'} priority=${priority || '-'}`,
+      req.user.id, { ticketId: id, status, priority });
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/admin/support/:id/reply ──────────────────────────────────────────────
+router.post('/support/:id/reply', requirePermission('admin:support:write'), async (req, res) => {
+  try {
+    const id     = Number(req.params.id);
+    const ticket = db.getSupportTicketDetail(id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found.' });
+
+    const { body } = req.body;
+    if (!body || !body.trim()) return res.status(400).json({ error: 'Reply body is required.' });
+
+    const msg = db.addSupportMessage(id, req.user.id, body.trim(), true);
+
+    // Auto-move to in_progress if still open
+    if (ticket.status === 'open') {
+      db.updateSupportTicket(id, { status: 'in_progress' });
+    }
+
+    db.writeLog('audit', 'support',
+      `Admin ${req.user.username} replied to ticket #${id}`,
+      req.user.id, { ticketId: id });
+
+    // Notify the customer by email
+    const toEmail = ticket.userId ? ticket.userEmail : ticket.guestEmail;
+    const toName  = ticket.userId ? (ticket.username || 'Customer') : ticket.guestName;
+    let previewUrl = null;
+    if (toEmail) {
+      try {
+        previewUrl = await sendEmail({
+          to: toEmail,
+          subject: `Re: ${ticket.subject} [Ref #${id}]`,
+          html: `<p>Hi ${toName},</p>
+                 <p>A member of our support team has replied to your request.</p>
+                 <blockquote style="border-left:3px solid #6366f1;padding:0.5rem 1rem;margin:1rem 0">${body.trim().split('\n').join('<br>')}</blockquote>
+                 <p>Log in to your account to view the full thread and reply.</p>`
+        });
+      } catch (emailErr) {
+        console.error('Support reply email failed:', emailErr.message);
+      }
+    }
+
+    res.status(201).json({ msg, previewUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;

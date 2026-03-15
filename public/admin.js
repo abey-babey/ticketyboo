@@ -43,7 +43,8 @@ let currentUser   = null;
 const state = {
   logs:      { page: 1, filters: {} },
   customers: { page: 1, filters: {} },
-  purchases: { page: 1, filters: {} }
+  purchases: { page: 1, filters: {} },
+  support:   { page: 1, filters: {} }
 };
 let autoRefreshInterval = null;
 
@@ -67,7 +68,7 @@ function redirectToSite() {
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
-const SECTIONS = ['dashboard', 'logs', 'customers', 'purchases'];
+const SECTIONS = ['dashboard', 'logs', 'customers', 'purchases', 'support'];
 
 function showSection(name) {
   if (!SECTIONS.includes(name)) name = 'dashboard';
@@ -86,6 +87,7 @@ function showSection(name) {
   if (name === 'logs')      loadLogs();
   if (name === 'customers') loadCustomers();
   if (name === 'purchases') loadPurchases();
+  if (name === 'support')   loadSupport();
 }
 
 function routeFromHash() {
@@ -507,6 +509,165 @@ function bindEvents() {
   document.getElementById('purch-q').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('btn-purch-search').click();
   });
+
+  // ── Support
+  document.getElementById('btn-sup-search').addEventListener('click', () => {
+    state.support.filters = {
+      q:        document.getElementById('sup-q').value.trim()       || undefined,
+      status:   document.getElementById('sup-status').value         || undefined,
+      priority: document.getElementById('sup-priority').value       || undefined
+    };
+    state.support.page = 1;
+    loadSupport(1);
+  });
+  document.getElementById('btn-sup-reset').addEventListener('click', () => {
+    ['sup-q'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('sup-status').value   = 'all';
+    document.getElementById('sup-priority').value = '';
+    state.support.filters = {};
+    state.support.page    = 1;
+    loadSupport(1);
+  });
+  document.getElementById('sup-q').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-sup-search').click();
+  });
+
+  document.getElementById('sup-detail-close').addEventListener('click', () => {
+    document.getElementById('sup-detail-overlay').classList.add('hidden');
+  });
+}
+
+// ── Support ────────────────────────────────────────────────────────────────────
+
+const STATUS_COLOURS = { open: '#e53e3e', in_progress: '#dd6b20', resolved: '#38a169', closed: '#718096' };
+const PRIORITY_COLOURS = { urgent: '#9b2c2c', high: '#c05621', normal: '#2b6cb0', low: '#555' };
+
+function statusBadge(s) {
+  return `<span class="badge" style="background:${STATUS_COLOURS[s]||'#718096'};color:#fff">${s.replace('_',' ')}</span>`;
+}
+function priorityBadge(p) {
+  return `<span class="badge" style="background:${PRIORITY_COLOURS[p]||'#555'};color:#fff">${p}</span>`;
+}
+
+async function loadSupport(page) {
+  if (page) state.support.page = page;
+  try {
+    const { q, status, priority } = state.support.filters;
+    const params = buildQS({ q, status, priority, page: state.support.page, limit: 20 });
+    const result = await api('GET', '/api/admin/support?' + params);
+
+    document.getElementById('sup-result-count').textContent =
+      `Showing ${result.rows.length} of ${result.total} ticket${result.total !== 1 ? 's' : ''}`;
+
+    document.getElementById('sup-tbody').innerHTML = result.rows.length
+      ? result.rows.map(t => `
+        <tr style="cursor:pointer" onclick="renderSupportDetail(${t.id})">
+          <td>#${t.id}</td>
+          <td>${escHtml(t.displayName || 'Guest')}<br><small style="color:#888">${escHtml(t.displayEmail||'')}</small></td>
+          <td>${escHtml(t.subject)}</td>
+          <td>${statusBadge(t.status)}</td>
+          <td>${priorityBadge(t.priority)}</td>
+          <td>${t.messageCount}</td>
+          <td>${fmtDate(t.updatedAt)}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="7" style="text-align:center;color:#999">No tickets found.</td></tr>';
+
+    document.getElementById('sup-pagination').innerHTML =
+      renderPagination(result.page, Math.ceil(result.total / result.limit), p => loadSupport(p));
+  } catch (err) {
+    toast('Support error: ' + err.message, 'error');
+  }
+}
+
+async function renderSupportDetail(ticketId) {
+  const overlay = document.getElementById('sup-detail-overlay');
+  const body    = document.getElementById('sup-detail-body');
+  document.getElementById('sup-detail-title').textContent = `Ticket #${ticketId}`;
+  body.innerHTML = '<p>Loading…</p>';
+  overlay.classList.remove('hidden');
+
+  try {
+    const ticket = await api('GET', `/api/support/tickets/${ticketId}`);
+
+    const canReply = ticket.status !== 'resolved' && ticket.status !== 'closed';
+
+    body.innerHTML = `
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+        ${statusBadge(ticket.status)} ${priorityBadge(ticket.priority)}
+        <span style="font-size:.8rem;color:#888">Created ${fmtDate(ticket.createdAt)}</span>
+      </div>
+      <div style="margin-bottom:1.25rem">
+        <strong>Customer:</strong> ${escHtml(ticket.username || ticket.guestName || 'Guest')}
+        &nbsp;(${escHtml(ticket.userEmail || ticket.guestEmail || '—')})
+      </div>
+
+      <div style="margin-bottom:1rem">
+        <label style="font-weight:600;display:block;margin-bottom:.25rem">Update status</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          ${['open','in_progress','resolved','closed'].map(s =>
+            `<button data-status="${s}" class="btn btn-sm ${ticket.status===s?'btn-primary':'btn-secondary'}"
+               onclick="updateTicketStatus(${ticket.id},'${s}')">${s.replace('_',' ')}</button>`
+          ).join('')}
+        </div>
+      </div>
+
+      <div class="support-thread" id="thread-${ticketId}">
+        ${(ticket.messages || []).map(m => {
+          const isAdmin = m.isAdmin;
+          return `<div style="text-align:${isAdmin?'right':'left'};margin:.6rem 0">
+            <div style="display:inline-block;max-width:85%;background:${isAdmin?'#eef2ff':'#f7fafc'};border-radius:8px;padding:.5rem .8rem;text-align:left">
+              <div style="font-size:.72rem;color:#888;margin-bottom:.2rem">
+                ${escHtml(isAdmin ? (m.authorName||'Admin') : (m.authorName||ticket.username||ticket.guestName||'Guest'))}
+                &bull; ${fmtTime(m.createdAt)}
+              </div>
+              <div>${escHtml(m.body).replace(/\n/g,'<br>')}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      ${canReply ? `
+      <form onsubmit="submitAdminReply(event,${ticket.id})" style="margin-top:1rem">
+        <textarea id="admin-reply-${ticketId}" rows="3" style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px" placeholder="Type your reply…"></textarea>
+        <div id="admin-reply-msg-${ticketId}" style="color:#e53e3e;margin-top:.25rem;font-size:.85rem"></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:.4rem">Send Reply</button>
+      </form>` : `<p style="color:#999;font-style:italic;margin-top:1rem">This ticket is ${ticket.status} — no further replies.</p>`}
+    `;
+  } catch (err) {
+    body.innerHTML = `<p style="color:red">Error: ${escHtml(err.message)}</p>`;
+  }
+}
+
+async function updateTicketStatus(ticketId, status) {
+  try {
+    await api('PUT', `/api/admin/support/${ticketId}`, { status });
+    toast(`Ticket #${ticketId} marked as ${status.replace('_',' ')}`, 'success');
+    renderSupportDetail(ticketId);
+    loadSupport();
+  } catch (err) {
+    toast('Update failed: ' + err.message, 'error');
+  }
+}
+
+async function submitAdminReply(e, ticketId) {
+  e.preventDefault();
+  const textarea = document.getElementById(`admin-reply-${ticketId}`);
+  const msgEl    = document.getElementById(`admin-reply-msg-${ticketId}`);
+  const body     = textarea ? textarea.value.trim() : '';
+  if (!body) return;
+
+  try {
+    const result = await api('POST', `/api/admin/support/${ticketId}/reply`, { body });
+    if (result.previewUrl) {
+      toast(`Reply sent. Email preview: ${result.previewUrl}`, 'info');
+    } else {
+      toast('Reply sent', 'success');
+    }
+    renderSupportDetail(ticketId);
+    loadSupport();
+  } catch (err) {
+    if (msgEl) msgEl.textContent = err.message;
+  }
 }
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────────

@@ -1018,7 +1018,7 @@ function closeAccountModal() {
 }
 
 function switchAccountTab(tab) {
-    ['profile', 'security', 'cards', 'purchases'].forEach(t => {
+    ['profile', 'security', 'cards', 'purchases', 'support'].forEach(t => {
         const tabBtn   = document.getElementById('accountTab'   + t.charAt(0).toUpperCase() + t.slice(1));
         const tabPanel = document.getElementById('accountPanel' + t.charAt(0).toUpperCase() + t.slice(1));
         if (!tabBtn || !tabPanel) return;
@@ -1034,6 +1034,7 @@ function switchAccountTab(tab) {
     }
     if (tab === 'cards')     loadSavedCards();
     if (tab === 'purchases') loadPurchaseHistory();
+    if (tab === 'support')   loadSupportHistory();
 }
 
 function loadAccountProfile() {
@@ -1385,4 +1386,190 @@ function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ────────────────────────────────────────────────────────────
+// Support
+// ────────────────────────────────────────────────────────────
+
+let currentThreadTicketId = null;
+
+function openSupportModal() {
+    const modal = document.getElementById('supportModal');
+    if (!modal) return;
+    // Reset form
+    document.getElementById('supportForm').reset();
+    document.getElementById('supportFormMsg').textContent = '';
+    document.getElementById('supportSuccessState').style.display = 'none';
+    document.getElementById('supportForm').style.display = '';
+    // Show/hide guest fields
+    const guestNameG  = document.getElementById('supportGuestNameGroup');
+    const guestEmailG = document.getElementById('supportGuestEmailGroup');
+    if (guestNameG)  guestNameG.style.display  = currentUser ? 'none' : '';
+    if (guestEmailG) guestEmailG.style.display = currentUser ? 'none' : '';
+    modal.style.display = 'flex';
+}
+
+function closeSupportModal() {
+    const modal = document.getElementById('supportModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitSupportRequest(e) {
+    e.preventDefault();
+    const btn     = document.getElementById('supportSubmitBtn');
+    const msgEl   = document.getElementById('supportFormMsg');
+    const subject = document.getElementById('supportSubject').value;
+    const message = document.getElementById('supportMessage').value;
+    const bookingRef = document.getElementById('supportBookingRef').value.trim();
+
+    msgEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    const body = { subject, message, bookingRef };
+    if (!currentUser) {
+        body.name  = document.getElementById('supportGuestName').value.trim();
+        body.email = document.getElementById('supportGuestEmail').value.trim();
+    }
+
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        const token   = getStoredToken();
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        const res  = await fetch('/api/support/tickets', { method: 'POST', headers, body: JSON.stringify(body) });
+        const data = await res.json();
+
+        if (!res.ok) {
+            msgEl.textContent = data.error || 'Failed to submit request.';
+            msgEl.className   = 'account-feedback account-feedback--error';
+        } else {
+            document.getElementById('supportForm').style.display = 'none';
+            const successMsg = document.getElementById('supportSuccessMsg');
+            successMsg.textContent = `Your request has been received (Ref #${data.ticketId}).` +
+                (data.previewUrl ? ' A confirmation email has been sent.' : '');
+            document.getElementById('supportSuccessState').style.display = '';
+        }
+    } catch (err) {
+        msgEl.textContent = 'Network error, please try again.';
+        msgEl.className   = 'account-feedback account-feedback--error';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Request';
+    }
+}
+
+async function loadSupportHistory() {
+    const list = document.getElementById('supportHistoryList');
+    if (!list || !currentUser) return;
+    list.innerHTML = '<p>Loading…</p>';
+    try {
+        const res     = await fetch('/api/support/tickets', { headers: { 'Authorization': 'Bearer ' + getStoredToken() } });
+        const tickets = await res.json();
+        if (!res.ok) { list.innerHTML = '<p>Could not load support history.</p>'; return; }
+        if (!tickets.length) { list.innerHTML = '<p>No support requests yet.</p>'; return; }
+
+        const statusBadge = s => {
+            const map = { open: '#e53e3e', in_progress: '#dd6b20', resolved: '#38a169', closed: '#718096' };
+            return `<span style="background:${map[s]||'#718096'};color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem">${s.replace('_', ' ')}</span>`;
+        };
+
+        list.innerHTML = tickets.map(t => `
+          <div class="purchase-history-item" style="cursor:pointer" onclick="openSupportThread(${t.id})">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+              <strong>${escapeHtml(t.subject)}</strong>
+              ${statusBadge(t.status)}
+            </div>
+            <div style="font-size:.8rem;color:#666;margin-top:.25rem">
+              Ref #${t.id} &nbsp;·&nbsp; ${new Date(t.createdAt).toLocaleDateString('en-GB')} &nbsp;·&nbsp; ${t.messageCount} message${t.messageCount !== 1 ? 's' : ''}
+              &mdash; <a href="#" onclick="openSupportThread(${t.id}); return false;">View thread &rsaquo;</a>
+            </div>
+          </div>
+        `).join('');
+    } catch (err) {
+        list.innerHTML = '<p>Error loading support history.</p>';
+    }
+}
+
+async function openSupportThread(ticketId) {
+    currentThreadTicketId = ticketId;
+    const modal = document.getElementById('supportThreadModal');
+    if (!modal) return;
+    document.getElementById('supportThreadMessages').innerHTML = '<p>Loading…</p>';
+    document.getElementById('supportThreadMeta').innerHTML = '';
+    document.getElementById('supportReplyBody').value = '';
+    document.getElementById('supportReplyMsg').textContent = '';
+    modal.style.display = 'flex';
+
+    try {
+        const res    = await fetch(`/api/support/tickets/${ticketId}`, { headers: { 'Authorization': 'Bearer ' + getStoredToken() } });
+        const ticket = await res.json();
+        if (!res.ok) { document.getElementById('supportThreadMessages').innerHTML = '<p>Could not load ticket.</p>'; return; }
+
+        document.getElementById('supportThreadTitle').textContent = `Ref #${ticket.id}: ${ticket.subject}`;
+        document.getElementById('supportThreadMeta').innerHTML =
+            `<span>Status: <strong>${ticket.status.replace('_',' ')}</strong></span>`;
+
+        const msgs = ticket.messages || [];
+        const replyForm = document.getElementById('supportReplyForm');
+        const canReply  = ticket.status !== 'resolved' && ticket.status !== 'closed';
+        replyForm.style.display = canReply ? '' : 'none';
+
+        document.getElementById('supportThreadMessages').innerHTML = msgs.length
+            ? msgs.map(m => {
+                const align = m.isAdmin ? 'right' : 'left';
+                const bg    = m.isAdmin ? '#eef2ff' : '#f7fafc';
+                const label = m.isAdmin ? 'Support Team' : (m.authorName || 'You');
+                return `<div style="text-align:${align};margin:.75rem 0">
+                  <div style="display:inline-block;max-width:80%;background:${bg};border-radius:8px;padding:.6rem .9rem;text-align:left">
+                    <div style="font-size:.75rem;color:#666;margin-bottom:.3rem">${escapeHtml(label)} &bull; ${new Date(m.createdAt).toLocaleString('en-GB')}</div>
+                    <div>${escapeHtml(m.body).replace(/\n/g, '<br>')}</div>
+                  </div>
+                </div>`;
+              }).join('')
+            : '<p style="color:#999">No messages yet.</p>';
+    } catch (err) {
+        document.getElementById('supportThreadMessages').innerHTML = '<p>Error loading thread.</p>';
+    }
+}
+
+function closeSupportThread() {
+    const modal = document.getElementById('supportThreadModal');
+    if (modal) modal.style.display = 'none';
+    currentThreadTicketId = null;
+}
+
+async function submitSupportReply(e) {
+    e.preventDefault();
+    const btn   = document.getElementById('supportReplyBtn');
+    const msgEl = document.getElementById('supportReplyMsg');
+    const body  = document.getElementById('supportReplyBody').value.trim();
+    if (!body) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    msgEl.textContent = '';
+
+    try {
+        const res  = await fetch(`/api/support/tickets/${currentThreadTicketId}/reply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getStoredToken() },
+            body: JSON.stringify({ body })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            msgEl.textContent = data.error || 'Failed to send reply.';
+            msgEl.className   = 'account-feedback account-feedback--error';
+        } else {
+            document.getElementById('supportReplyBody').value = '';
+            openSupportThread(currentThreadTicketId); // Reload thread
+        }
+    } catch (err) {
+        msgEl.textContent = 'Network error, please try again.';
+        msgEl.className   = 'account-feedback account-feedback--error';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Reply';
+    }
 }

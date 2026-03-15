@@ -11,6 +11,7 @@ const accountRoutes = require('./routes/account');
 const eventRoutes   = require('./routes/events');
 const ticketRoutes  = require('./routes/tickets');
 const adminRoutes   = require('./routes/admin');
+const supportRoutes = require('./routes/support');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api/account', accountRoutes);
 app.use('/api/events',  eventRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/admin',   adminRoutes);
+app.use('/api/support', supportRoutes);
 
 // ─── Admin panel ──────────────────────────────────────────────────────────────
 app.get('/admin', (req, res) => {

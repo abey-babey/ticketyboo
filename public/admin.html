@@ -29,6 +29,9 @@
       <a class="nav-item" data-section="purchases" href="#purchases">
         <span class="nav-icon">🛒</span> Purchases
       </a>
+      <a class="nav-item" data-section="support" href="#support">
+        <span class="nav-icon">🏷</span> Support
+      </a>
     </nav>
 
     <div class="sidebar-footer">
@@ -192,6 +195,58 @@
         <tbody id="purch-tbody"></tbody>
       </table>
       <div id="purch-pagination" class="pagination"></div>
+    </section>
+
+    <!-- ── Support ───────────────────────────────────────────────────────────── -->
+    <section class="section hidden" id="section-support">
+      <h1 class="section-title">Support Tickets</h1>
+
+      <div class="filter-bar">
+        <input type="text" id="sup-q" class="filter-input" placeholder="Search subject, name, email…" />
+        <select id="sup-status" class="filter-select" aria-label="Filter by status">
+          <option value="all">All statuses</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="resolved">Resolved</option>
+          <option value="closed">Closed</option>
+        </select>
+        <select id="sup-priority" class="filter-select" aria-label="Filter by priority">
+          <option value="">All priorities</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+          <option value="low">Low</option>
+        </select>
+        <button class="btn btn-primary" id="btn-sup-search">Search</button>
+        <button class="btn btn-ghost"   id="btn-sup-reset">Reset</button>
+      </div>
+
+      <div id="sup-result-count" class="result-count"></div>
+
+      <table class="data-table" id="sup-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Customer</th>
+            <th>Subject</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Messages</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody id="sup-tbody"></tbody>
+      </table>
+      <div id="sup-pagination" class="pagination"></div>
+
+      <!-- Support ticket detail overlay -->
+      <div class="detail-overlay hidden" id="sup-detail-overlay">
+        <div class="detail-panel">
+          <button class="detail-close" id="sup-detail-close">&times;</button>
+          <h2 id="sup-detail-title">Support Ticket</h2>
+          <div id="sup-detail-body" class="detail-body"></div>
+        </div>
+      </div>
     </section>
 
   </main>
