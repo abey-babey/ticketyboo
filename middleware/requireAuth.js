@@ -38,4 +38,36 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, optionalAuth };
+/**
+ * Requires the authenticated user's role column to equal `role`.
+ * Must be used after requireAuth.
+ * Responds 403 Forbidden if the check fails.
+ */
+function requireRole(role) {
+  return function (req, res, next) {
+    if (!req.user || req.user.role !== role) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    next();
+  };
+}
+
+/**
+ * Requires the authenticated user to hold a specific permission string.
+ * Must be used after requireAuth.
+ * Responds 403 Forbidden if the check fails.
+ */
+function requirePermission(permission) {
+  return function (req, res, next) {
+    if (!req.user) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const perms = req.user.permissions || [];
+    if (!perms.includes(permission)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    next();
+  };
+}
+
+module.exports = { requireAuth, optionalAuth, requireRole, requirePermission };
