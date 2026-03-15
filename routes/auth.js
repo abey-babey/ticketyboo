@@ -1,13 +1,14 @@
 // ─── Auth routes  (/api/auth/*) ───────────────────────────────────────────────
 
 const express                   = require('express');
-const { store, safeUser }       = require('../lib/store');
+const db                        = require('../lib/db');
+const { store }                 = require('../lib/store');   // ephemeral: pendingTwoFa, resetTokens
 const { generateToken }         = require('../lib/tokenUtils');
-const { validatePasswordComplexity, isPasswordReused, isPasswordReusedAsync,
-        hashPassword, verifyPassword, recordPasswordHistory } = require('../lib/passwordValidator');
+const { validatePasswordComplexity, isPasswordReusedAsync,
+        hashPassword, verifyPassword } = require('../lib/passwordValidator');
 const { sendEmail }             = require('../lib/emailService');
 const { requireAuth }           = require('../middleware/requireAuth');
-const { checkRateLimit, recordFailedAttempt, clearAttempts, attemptsRemaining, MAX_ATTEMPTS } = require('../middleware/rateLimiter');
+const { checkRateLimit, recordFailedAttempt, clearAttempts, attemptsRemaining } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'All required fields must be provided.' });
   }
 
-  if (store.users.find(u => u.username === username)) {
+  if (db.getUserByUsername(username)) {
     return res.status(409).json({ error: 'Username already taken.' });
   }
 
@@ -32,17 +33,15 @@ router.post('/register', async (req, res) => {
 
   const passwordHash = await hashPassword(password);
 
-  const user = {
-    id:            store.userIdCounter++,
+  const userId = db.createUser({
     username,
     password:      passwordHash,
-    passwordHistory: [],
-    title:           title        || '',
+    title:         title        || '',
     firstName,
-    middleName:      middleName   || '',
+    middleName:    middleName   || '',
     lastName,
-    knownAs:         knownAs      || '',
-    gender:          gender       || '',
+    knownAs:       knownAs      || '',
+    gender:        gender       || '',
     marketingPrefs: {
       email: !!(marketingPrefs && marketingPrefs.email),
       sms:   !!(marketingPrefs && marketingPrefs.sms),
@@ -50,22 +49,21 @@ router.post('/register', async (req, res) => {
       post:  !!(marketingPrefs && marketingPrefs.post)
     },
     customerEmail,
-    phone:           phone        || '',
-    addressLine1:    addressLine1 || '',
-    addressLine2:    addressLine2 || '',
-    postcode:        postcode     || '',
-    city:            city         || '',
-    county:          county       || '',
-    country:         country      || '',
-    twoFactorEnabled: false,
-    savedCards:       []
-  };
+    phone:         phone        || '',
+    addressLine1:  addressLine1 || '',
+    addressLine2:  addressLine2 || '',
+    postcode:      postcode     || '',
+    city:          city         || '',
+    county:        county       || '',
+    country:       country      || '',
+    twoFactorEnabled: false
+  });
 
-  store.users.push(user);
   const token = generateToken();
-  store.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
+  db.createSession(token, userId);
+  const user = db.getUserById(userId);
 
-  res.status(201).json({ success: true, token, user: safeUser(user) });
+  res.status(201).json({ success: true, token, user: db.safeUser(user) });
 });
 
 // ─── POST /api/auth/login ────────────────────────────────────────────────────
@@ -80,7 +78,7 @@ router.post('/login', async (req, res) => {
   const limit = checkRateLimit(username);
   if (!limit.allowed) return res.status(429).json({ error: limit.message });
 
-  const userRecord = store.users.find(u => u.username === username);
+  const userRecord = db.getUserByUsername(username);
   const passwordOk  = userRecord ? await verifyPassword(password, userRecord.password) : false;
   const user = passwordOk ? userRecord : null;
   if (!user) {
@@ -133,8 +131,9 @@ router.post('/login', async (req, res) => {
   }
 
   const token = generateToken();
-  store.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
-  res.json({ success: true, token, user: safeUser(user) });
+  db.createSession(token, user.id);
+  const fullUser = db.getUserById(user.id);
+  res.json({ success: true, token, user: db.safeUser(fullUser) });
 });
 
 // ─── POST /api/auth/verify-2fa ───────────────────────────────────────────────
@@ -171,15 +170,15 @@ router.post('/verify-2fa', (req, res) => {
     return res.status(400).json({ error: `Incorrect verification code${hint}. Please try again.` });
   }
 
-  const user = store.users.find(u => u.id === challenge.userId);
+  const user = db.getUserById(challenge.userId);
   if (!user) return res.status(400).json({ error: 'User not found.' });
 
   clearAttempts('2fa:' + challengeId);
   store.pendingTwoFa = store.pendingTwoFa.filter(c => c.challengeId !== challengeId);
 
   const token = generateToken();
-  store.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
-  res.json({ success: true, token, user: safeUser(user) });
+  db.createSession(token, user.id);
+  res.json({ success: true, token, user: db.safeUser(user) });
 });
 
 // ─── POST /api/auth/reset-password/request ──────────────────────────────────
@@ -189,7 +188,7 @@ router.post('/reset-password/request', async (req, res) => {
     return res.status(400).json({ error: 'Username and email address are required.' });
   }
 
-  const user = store.users.find(u => u.username === username && u.customerEmail === customerEmail);
+  const user = db.getUserByUsernameAndEmail(username, customerEmail);
   if (!user) {
     return res.status(404).json({ error: 'No account found with that username and email address.' });
   }
@@ -244,17 +243,18 @@ router.post('/reset-password/confirm', async (req, res) => {
   const passwordError = validatePasswordComplexity(newPassword);
   if (passwordError) return res.status(400).json({ error: passwordError });
 
-  const user = store.users.find(u => u.id === entry.userId);
+  const user = db.getUserById(entry.userId);
   if (!user) return res.status(400).json({ error: 'User not found.' });
 
-  const reused = (await isPasswordReusedAsync(newPassword, user.passwordHistory)) ||
+  const passwordHistory = db.getPasswordHistory(entry.userId);
+  const reused = (await isPasswordReusedAsync(newPassword, passwordHistory)) ||
                  (await verifyPassword(newPassword, user.password));
   if (reused) {
     return res.status(400).json({ error: 'You have used this password recently. Please choose a new one.' });
   }
 
-  recordPasswordHistory(user);
-  user.password = await hashPassword(newPassword);
+  db.addPasswordHistory(entry.userId, user.password);
+  db.updateUser(entry.userId, { password: await hashPassword(newPassword) });
   store.resetTokens = store.resetTokens.filter(t => t.token !== entry.token);
   res.json({ success: true });
 });
@@ -264,14 +264,14 @@ router.post('/logout', (req, res) => {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {
     const token = auth.substring(7);
-    store.sessions = store.sessions.filter(s => s.token !== token);
+    db.deleteSession(token);
   }
   res.json({ success: true });
 });
 
 // ─── GET /api/auth/session ───────────────────────────────────────────────────
 router.get('/session', requireAuth, (req, res) => {
-  res.json({ user: safeUser(req.user) });
+  res.json({ user: db.safeUser(req.user) });
 });
 
 module.exports = router;

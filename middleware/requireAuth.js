@@ -1,7 +1,7 @@
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 // Validates the Bearer token on protected routes and attaches req.user.
 
-const { store } = require('../lib/store');
+const db = require('../lib/db');
 
 function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
@@ -9,11 +9,11 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const token = auth.substring(7);
-  const session = store.sessions.find(s => s.token === token);
+  const session = db.getSession(token);
   if (!session) {
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
-  const user = store.users.find(u => u.id === session.userId);
+  const user = db.getUserById(session.userId);
   if (!user) {
     return res.status(401).json({ error: 'User not found' });
   }
@@ -29,9 +29,9 @@ function optionalAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {
     const token = auth.substring(7);
-    const session = store.sessions.find(s => s.token === token);
+    const session = db.getSession(token);
     if (session) {
-      const user = store.users.find(u => u.id === session.userId);
+      const user = db.getUserById(session.userId);
       if (user) req.user = user;
     }
   }

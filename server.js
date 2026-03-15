@@ -2,7 +2,8 @@
 // server.js is intentionally thin — all logic lives in routes/ and lib/.
 //
 // Structure:
-//   lib/store.js             — shared in-memory data store + safeUser()
+//   lib/db.js                — SQLite connection, schema migrations, DAO helpers
+//   lib/store.js             — ephemeral in-memory data (pendingTwoFa, resetTokens)
 //   lib/tokenUtils.js        — generateToken()
 //   lib/passwordValidator.js — dual-mode password/passphrase validation + reuse check
 //   lib/emailService.js      — Ethereal fake-SMTP transport
@@ -13,16 +14,26 @@
 //   routes/events.js         — /api/events/*
 //   routes/tickets.js        — /api/tickets/*
 
-const express    = require('express');
-const path       = require('path');
 const { initEmailTransport } = require('./lib/emailService');
-
+const db   = require('./lib/db');   // opens / migrates the SQLite database on require
 const app  = require('./app');
 const PORT = process.env.PORT || 3000;
 
 initEmailTransport().then(() => {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Ticketyboo server running on http://localhost:${PORT}`);
+    console.log('Data layer: SQLite (ticketyboo.db) via better-sqlite3');
     console.log('Password storage: bcryptjs (cost factor 10) — plain-text passwords are never stored.');
   });
+
+  // Graceful shutdown — close the SQLite connection cleanly
+  function shutdown() {
+    server.close(() => {
+      db.close();
+      process.exit(0);
+    });
+  }
+
+  process.on('SIGINT',  shutdown);
+  process.on('SIGTERM', shutdown);
 });

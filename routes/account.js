@@ -1,16 +1,16 @@
 // ─── Account routes  (/api/account/*) ────────────────────────────────────────
 
 const express     = require('express');
-const { store, safeUser } = require('../lib/store');
+const db          = require('../lib/db');
 const { validatePasswordComplexity, isPasswordReusedAsync,
-        hashPassword, verifyPassword, recordPasswordHistory } = require('../lib/passwordValidator');
+        hashPassword, verifyPassword } = require('../lib/passwordValidator');
 const { requireAuth } = require('../middleware/requireAuth');
 
 const router = express.Router();
 
 // ─── GET /api/account ────────────────────────────────────────────────────────
 router.get('/', requireAuth, (req, res) => {
-  res.json({ user: safeUser(req.user) });
+  res.json({ user: db.safeUser(req.user) });
 });
 
 // ─── PUT /api/account ────────────────────────────────────────────────────────
@@ -27,29 +27,28 @@ router.put('/', requireAuth, (req, res) => {
   }
 
   if (username && username !== user.username) {
-    if (store.users.find(u => u.username === username && u.id !== user.id)) {
+    const existing = db.getUserByUsername(username);
+    if (existing && existing.id !== user.id) {
       return res.status(409).json({ error: 'Username already taken.' });
     }
-    user.username = username;
   }
 
-  if (title            !== undefined) user.title            = title;
-  user.firstName        = firstName;
-  if (middleName       !== undefined) user.middleName       = middleName;
-  user.lastName         = lastName;
-  if (knownAs          !== undefined) user.knownAs          = knownAs;
-  if (gender           !== undefined) user.gender           = gender;
-  user.customerEmail    = customerEmail;
-  if (phone            !== undefined) user.phone            = phone;
-  if (addressLine1     !== undefined) user.addressLine1     = addressLine1;
-  if (addressLine2     !== undefined) user.addressLine2     = addressLine2;
-  if (postcode         !== undefined) user.postcode         = postcode;
-  if (city             !== undefined) user.city             = city;
-  if (county           !== undefined) user.county           = county;
-  if (country          !== undefined) user.country          = country;
-  if (twoFactorEnabled !== undefined) user.twoFactorEnabled = !!twoFactorEnabled;
+  const updates = { firstName, lastName, customerEmail };
+  if (username            !== undefined) updates.username          = username;
+  if (title               !== undefined) updates.title             = title;
+  if (middleName          !== undefined) updates.middleName        = middleName;
+  if (knownAs             !== undefined) updates.knownAs           = knownAs;
+  if (gender              !== undefined) updates.gender            = gender;
+  if (phone               !== undefined) updates.phone             = phone;
+  if (addressLine1        !== undefined) updates.addressLine1      = addressLine1;
+  if (addressLine2        !== undefined) updates.addressLine2      = addressLine2;
+  if (postcode            !== undefined) updates.postcode          = postcode;
+  if (city                !== undefined) updates.city              = city;
+  if (county              !== undefined) updates.county            = county;
+  if (country             !== undefined) updates.country           = country;
+  if (twoFactorEnabled    !== undefined) updates.twoFactorEnabled  = !!twoFactorEnabled;
   if (marketingPrefs) {
-    user.marketingPrefs = {
+    updates.marketingPrefs = {
       email: !!marketingPrefs.email,
       sms:   !!marketingPrefs.sms,
       phone: !!marketingPrefs.phone,
@@ -57,7 +56,9 @@ router.put('/', requireAuth, (req, res) => {
     };
   }
 
-  res.json({ success: true, user: safeUser(user) });
+  db.updateUser(user.id, updates);
+  const updated = db.getUserById(user.id);
+  res.json({ success: true, user: db.safeUser(updated) });
 });
 
 // ─── PUT /api/account/password ───────────────────────────────────────────────
@@ -77,29 +78,28 @@ router.put('/password', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'New password must be different from your current password.' });
   }
 
-  if (await isPasswordReusedAsync(newPassword, user.passwordHistory)) {
+  const passwordHistory = db.getPasswordHistory(user.id);
+  if (await isPasswordReusedAsync(newPassword, passwordHistory)) {
     return res.status(400).json({ error: 'You have used this password recently. Please choose a new one.' });
   }
 
   const passwordError = validatePasswordComplexity(newPassword);
   if (passwordError) return res.status(400).json({ error: passwordError });
 
-  recordPasswordHistory(user);
-  user.password = await hashPassword(newPassword);
+  db.addPasswordHistory(user.id, user.password);
+  db.updateUser(user.id, { password: await hashPassword(newPassword) });
   res.json({ success: true });
 });
 
 // ─── GET /api/account/purchases ─────────────────────────────────────────────
 router.get('/purchases', requireAuth, (req, res) => {
-  const purchases = store.purchases
-    .filter(p => p.userId === req.user.id)
-    .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+  const purchases = db.getPurchasesByUser(req.user.id);
   res.json({ purchases });
 });
 
 // ─── GET /api/account/cards ──────────────────────────────────────────────────
 router.get('/cards', requireAuth, (req, res) => {
-  const cards = (req.user.savedCards || []).map(c => ({
+  const cards = db.getCardsByUser(req.user.id).map(c => ({
     id:             c.id,
     nickname:       c.nickname,
     cardholderName: c.cardholderName,
@@ -137,34 +137,25 @@ router.post('/cards', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Card has expired.' });
   }
 
-  if (!user.savedCards) user.savedCards = [];
-
-  const card = {
-    id:             store.cardIdCounter++,
+  const card = db.createCard(user.id, {
     nickname:       nickname ? nickname.trim() : '',
     cardholderName: cardholderName.trim().toUpperCase(),
     cardLast4:      cardNumberClean.slice(-4),
     cardMasked:     '**** **** **** ' + cardNumberClean.slice(-4),
-    cardExpiry,
-    createdAt:      new Date().toISOString()
-  };
+    cardExpiry
+  });
 
-  user.savedCards.push(card);
   res.status(201).json({ success: true, card });
 });
 
 // ─── DELETE /api/account/cards/:cardId ───────────────────────────────────────
 router.delete('/cards/:cardId', requireAuth, (req, res) => {
-  const user   = req.user;
   const cardId = parseInt(req.params.cardId);
-
-  if (!user.savedCards) return res.status(404).json({ error: 'Card not found.' });
-
-  const idx = user.savedCards.findIndex(c => c.id === cardId);
-  if (idx === -1) return res.status(404).json({ error: 'Card not found.' });
-
-  user.savedCards.splice(idx, 1);
+  const changes = db.deleteCard(cardId, req.user.id);
+  if (changes === 0) return res.status(404).json({ error: 'Card not found.' });
   res.json({ success: true });
 });
+
+module.exports = router;
 
 module.exports = router;
