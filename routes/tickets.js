@@ -3,7 +3,7 @@
 const express      = require('express');
 const PDFDocument  = require('pdfkit');
 const QRCode       = require('qrcode');
-const { store }    = require('../lib/store');
+const db           = require('../lib/db');
 const { optionalAuth } = require('../middleware/requireAuth');
 
 const router = express.Router();
@@ -67,7 +67,7 @@ router.post('/purchase', optionalAuth, (req, res) => {
     resolvedCardMasked     = '**** **** **** ' + cardNumberClean.slice(-4);
   }
 
-  const event = store.events.find(e => e.id === parseInt(eventId));
+  const event = db.getEventById(parseInt(eventId));
   if (!event) return res.status(404).json({ error: 'Event not found.' });
 
   if (quantity < 1) return res.status(400).json({ error: 'Quantity must be at least 1.' });
@@ -75,10 +75,9 @@ router.post('/purchase', optionalAuth, (req, res) => {
     return res.status(400).json({ error: 'Not enough tickets available.' });
   }
 
-  event.availableTickets -= quantity;
+  db.decrementTickets(event.id, quantity);
 
-  const purchase = {
-    id:             store.purchaseIdCounter++,
+  const purchaseData = {
     eventId:        event.id,
     eventName:      event.name,
     quantity,
@@ -88,31 +87,30 @@ router.post('/purchase', optionalAuth, (req, res) => {
     cardholderName: resolvedCardholderName,
     cardLast4:      resolvedCardLast4,
     cardMasked:     resolvedCardMasked,
-    purchaseDate:   new Date().toISOString()
+    purchaseDate:   new Date().toISOString(),
+    userId:         req.user ? req.user.id : null
   };
 
-  // Link to user account if authenticated
-  if (req.user) purchase.userId = req.user.id;
-
-  store.purchases.push(purchase);
+  const purchaseId = db.createPurchase(purchaseData);
+  const purchase   = db.getPurchaseById(purchaseId);
   res.status(201).json({ success: true, purchase });
 });
 
 // ─── GET /api/tickets ────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
-  res.json(store.purchases);
+  res.json(db.getAllPurchases());
 });
 
 // ─── GET /api/tickets/:id ────────────────────────────────────────────────────
 router.get('/:id', (req, res) => {
-  const purchase = store.purchases.find(p => p.id === parseInt(req.params.id));
+  const purchase = db.getPurchaseById(parseInt(req.params.id));
   if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
   res.json(purchase);
 });
 
 // ─── GET /api/tickets/:id/pdf ─────────────────────────────────────────────────
 router.get('/:id/pdf', async (req, res) => {
-  const purchase = store.purchases.find(p => p.id === parseInt(req.params.id));
+  const purchase = db.getPurchaseById(parseInt(req.params.id));
   if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
 
   try {
