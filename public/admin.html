@@ -88,14 +88,14 @@
 
       <div class="filter-bar">
         <input type="text" id="logs-q"        class="filter-input" placeholder="Search message…" />
-        <select id="logs-level"    class="filter-select">
+        <select id="logs-level"    class="filter-select" aria-label="Filter by level">
           <option value="">All levels</option>
           <option value="info">Info</option>
           <option value="warn">Warn</option>
           <option value="error">Error</option>
           <option value="audit">Audit</option>
         </select>
-        <select id="logs-category" class="filter-select">
+        <select id="logs-category" class="filter-select" aria-label="Filter by category">
           <option value="">All categories</option>
           <option value="auth">Auth</option>
           <option value="purchase">Purchase</option>
@@ -104,8 +104,8 @@
           <option value="support">Support</option>
           <option value="system">System</option>
         </select>
-        <input type="date" id="logs-from" class="filter-input" />
-        <input type="date" id="logs-to"   class="filter-input" />
+        <input type="date" id="logs-from" class="filter-input" aria-label="From date" />
+        <input type="date" id="logs-to"   class="filter-input" aria-label="To date" />
         <button class="btn btn-primary" id="btn-logs-search">Search</button>
         <button class="btn btn-ghost"   id="btn-logs-reset">Reset</button>
       </div>
@@ -170,8 +170,8 @@
 
       <div class="filter-bar">
         <input type="text" id="purch-q"    class="filter-input" placeholder="Search name, email, event…" />
-        <input type="date" id="purch-from" class="filter-input" />
-        <input type="date" id="purch-to"   class="filter-input" />
+        <input type="date" id="purch-from" class="filter-input" aria-label="From date" />
+        <input type="date" id="purch-to"   class="filter-input" aria-label="To date" />
         <button class="btn btn-primary" id="btn-purch-search">Search</button>
         <button class="btn btn-ghost"   id="btn-purch-reset">Reset</button>
       </div>
